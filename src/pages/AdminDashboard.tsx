@@ -1481,7 +1481,7 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
         .from("ngos")
         .update({
           ...formData,
-          user_id: selectedUserId || null
+        user_id: selectedUserId === "none" ? null : selectedUserId || null
         })
         .eq("id", ngo.id);
 
@@ -1539,14 +1539,14 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
       <div>
         <Label htmlFor="user_assignment">Assign NGO User Account</Label>
         <Select 
-          value={selectedUserId} 
-          onValueChange={setSelectedUserId}
+          value={selectedUserId || "none"} 
+          onValueChange={(value) => setSelectedUserId(value === "none" ? "" : value)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select user account" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">No user assigned</SelectItem>
+            <SelectItem value="none">No user assigned</SelectItem>
             {availableUsers.map((user) => (
               <SelectItem key={user.id} value={user.id}>
                 {user.first_name} {user.last_name} ({user.email})
@@ -1758,7 +1758,7 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
         .from("vendors")
         .update({
           ...formData,
-          user_id: selectedUserId || null
+          user_id: selectedUserId === "none" ? null : selectedUserId || null
         })
         .eq("id", vendor.id);
 
@@ -1816,14 +1816,14 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
       <div>
         <Label htmlFor="user_assignment">Assign Vendor User Account</Label>
         <Select 
-          value={selectedUserId} 
-          onValueChange={setSelectedUserId}
+          value={selectedUserId || "none"} 
+          onValueChange={(value) => setSelectedUserId(value === "none" ? "" : value)}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select user account" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">No user assigned</SelectItem>
+            <SelectItem value="none">No user assigned</SelectItem>
             {availableUsers.map((user) => (
               <SelectItem key={user.id} value={user.id}>
                 {user.first_name} {user.last_name} ({user.email})
@@ -2174,7 +2174,7 @@ const EditPackageForm = ({
         .update({
           ...formData,
           amount: parseFloat(formData.amount),
-          vendor_id: formData.vendor_id || null
+          vendor_id: formData.vendor_id === "none" ? null : formData.vendor_id || null
         })
         .eq("id", pkg.id);
 
@@ -2222,13 +2222,14 @@ const EditPackageForm = ({
         <div>
           <Label htmlFor="vendor_id">Vendor (Optional)</Label>
           <Select 
-            value={formData.vendor_id} 
-            onValueChange={(value) => setFormData({...formData, vendor_id: value})}
+            value={formData.vendor_id || "none"} 
+            onValueChange={(value) => setFormData({...formData, vendor_id: value === "none" ? "" : value})}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select Vendor" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="none">No vendor assigned</SelectItem>
               {vendors.map((vendor) => (
                 <SelectItem key={vendor.id} value={vendor.id}>
                   {vendor.company_name}
