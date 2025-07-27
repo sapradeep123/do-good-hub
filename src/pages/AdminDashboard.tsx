@@ -28,8 +28,13 @@ interface NGO {
   id: string;
   name: string;
   email: string;
+  description?: string;
+  mission?: string;
   location: string;
   category: string;
+  phone?: string;
+  website_url?: string;
+  registration_number?: string;
   is_verified: boolean;
   is_active: boolean;
   created_at: string;
@@ -38,8 +43,11 @@ interface NGO {
 interface Vendor {
   id: string;
   company_name: string;
+  contact_person?: string;
   email: string;
   phone: string;
+  address?: string;
+  description?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -71,6 +79,10 @@ const AdminDashboard = () => {
   const [isCreateNGOOpen, setIsCreateNGOOpen] = useState(false);
   const [isCreateVendorOpen, setIsCreateVendorOpen] = useState(false);
   const [isCreatePackageOpen, setIsCreatePackageOpen] = useState(false);
+  const [isEditNGOOpen, setIsEditNGOOpen] = useState(false);
+  const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
+  const [editingNGO, setEditingNGO] = useState<NGO | null>(null);
+  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -222,6 +234,109 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error updating user role:", error);
       toast.error("Failed to update user role");
+    }
+  };
+
+  const editNGO = (ngo: NGO) => {
+    setEditingNGO(ngo);
+    setIsEditNGOOpen(true);
+  };
+
+  const editVendor = (vendor: Vendor) => {
+    setEditingVendor(vendor);
+    setIsEditVendorOpen(true);
+  };
+
+  const deleteNGO = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete NGO "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success("NGO deleted successfully");
+      await fetchNGOs();
+    } catch (error) {
+      console.error("Error deleting NGO:", error);
+      toast.error("Failed to delete NGO");
+    }
+  };
+
+  const deleteVendor = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete vendor "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("vendors")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success("Vendor deleted successfully");
+      await fetchVendors();
+    } catch (error) {
+      console.error("Error deleting vendor:", error);
+      toast.error("Failed to delete vendor");
+    }
+  };
+
+  const toggleNGOStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .update({ is_active: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`NGO ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      await fetchNGOs();
+    } catch (error) {
+      console.error("Error updating NGO status:", error);
+      toast.error("Failed to update NGO status");
+    }
+  };
+
+  const toggleVendorStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("vendors")
+        .update({ is_active: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`Vendor ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      await fetchVendors();
+    } catch (error) {
+      console.error("Error updating vendor status:", error);
+      toast.error("Failed to update vendor status");
+    }
+  };
+
+  const toggleNGOVerification = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .update({ is_verified: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`NGO ${!currentStatus ? 'verified' : 'unverified'} successfully`);
+      await fetchNGOs();
+    } catch (error) {
+      console.error("Error updating NGO verification:", error);
+      toast.error("Failed to update NGO verification");
     }
   };
 
@@ -401,6 +516,7 @@ const AdminDashboard = () => {
                       <TableHead>Status</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -411,22 +527,77 @@ const AdminDashboard = () => {
                         <TableCell>{ngo.location}</TableCell>
                         <TableCell>{ngo.category}</TableCell>
                         <TableCell>
-                          <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
-                            {ngo.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleNGOStatus(ngo.id, ngo.is_active)}
+                          >
+                            <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
+                              {ngo.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </Button>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
-                            {ngo.is_verified ? 'Verified' : 'Pending'}
-                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleNGOVerification(ngo.id, ngo.is_verified)}
+                          >
+                            <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
+                              {ngo.is_verified ? 'Verified' : 'Pending'}
+                            </Badge>
+                          </Button>
                         </TableCell>
                         <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => editNGO(ngo)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteNGO(ngo.id, ngo.name)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Edit NGO Dialog */}
+            <Dialog open={isEditNGOOpen} onOpenChange={setIsEditNGOOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Edit NGO</DialogTitle>
+                  <DialogDescription>Update NGO information</DialogDescription>
+                </DialogHeader>
+                {editingNGO && (
+                  <EditNGOForm 
+                    ngo={editingNGO}
+                    onSuccess={() => {
+                      setIsEditNGOOpen(false);
+                      setEditingNGO(null);
+                      fetchNGOs();
+                    }}
+                    onCancel={() => {
+                      setIsEditNGOOpen(false);
+                      setEditingNGO(null);
+                    }}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="vendors" className="space-y-4">
@@ -466,6 +637,7 @@ const AdminDashboard = () => {
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -475,17 +647,66 @@ const AdminDashboard = () => {
                         <TableCell>{vendor.email}</TableCell>
                         <TableCell>{vendor.phone}</TableCell>
                         <TableCell>
-                          <Badge variant={vendor.is_active ? 'default' : 'destructive'}>
-                            {vendor.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleVendorStatus(vendor.id, vendor.is_active)}
+                          >
+                            <Badge variant={vendor.is_active ? 'default' : 'destructive'}>
+                              {vendor.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </Button>
                         </TableCell>
                         <TableCell>{format(new Date(vendor.created_at), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => editVendor(vendor)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteVendor(vendor.id, vendor.company_name)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Edit Vendor Dialog */}
+            <Dialog open={isEditVendorOpen} onOpenChange={setIsEditVendorOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Vendor</DialogTitle>
+                  <DialogDescription>Update vendor information</DialogDescription>
+                </DialogHeader>
+                {editingVendor && (
+                  <EditVendorForm 
+                    vendor={editingVendor}
+                    onSuccess={() => {
+                      setIsEditVendorOpen(false);
+                      setEditingVendor(null);
+                      fetchVendors();
+                    }}
+                    onCancel={() => {
+                      setIsEditVendorOpen(false);
+                      setEditingVendor(null);
+                    }}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="packages" className="space-y-4">
@@ -911,6 +1132,250 @@ const CreatePackageForm = ({
       </div>
 
       <Button type="submit" className="w-full">Create Package</Button>
+    </form>
+  );
+};
+
+// Edit NGO Form Component
+const EditNGOForm = ({ ngo, onSuccess, onCancel }: { 
+  ngo: NGO; 
+  onSuccess: () => void; 
+  onCancel: () => void; 
+}) => {
+  const [formData, setFormData] = useState({
+    name: ngo.name || '',
+    email: ngo.email || '',
+    description: ngo.description || '',
+    mission: ngo.mission || '',
+    location: ngo.location || '',
+    category: ngo.category || '',
+    phone: ngo.phone || '',
+    website_url: ngo.website_url || '',
+    registration_number: ngo.registration_number || ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .update(formData)
+        .eq("id", ngo.id);
+
+      if (error) throw error;
+
+      toast.success("NGO updated successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error updating NGO:", error);
+      toast.error("Failed to update NGO");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="name">Name *</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="email">Email *</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            required
+          />
+        </div>
+      </div>
+      
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="mission">Mission</Label>
+        <Textarea
+          id="mission"
+          value={formData.mission}
+          onChange={(e) => setFormData({...formData, mission: e.target.value})}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="location">Location</Label>
+          <Input
+            id="location"
+            value={formData.location}
+            onChange={(e) => setFormData({...formData, location: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select 
+            value={formData.category} 
+            onValueChange={(value) => setFormData({...formData, category: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Education">Education</SelectItem>
+              <SelectItem value="Healthcare">Healthcare</SelectItem>
+              <SelectItem value="Environment">Environment</SelectItem>
+              <SelectItem value="Nutrition">Nutrition</SelectItem>
+              <SelectItem value="Women Empowerment">Women Empowerment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="registration_number">Registration Number</Label>
+          <Input
+            id="registration_number"
+            value={formData.registration_number}
+            onChange={(e) => setFormData({...formData, registration_number: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="website_url">Website URL</Label>
+        <Input
+          id="website_url"
+          value={formData.website_url}
+          onChange={(e) => setFormData({...formData, website_url: e.target.value})}
+        />
+      </div>
+
+      <div className="flex space-x-2">
+        <Button type="submit" className="flex-1">Update NGO</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </form>
+  );
+};
+
+// Edit Vendor Form Component
+const EditVendorForm = ({ vendor, onSuccess, onCancel }: { 
+  vendor: Vendor; 
+  onSuccess: () => void; 
+  onCancel: () => void; 
+}) => {
+  const [formData, setFormData] = useState({
+    company_name: vendor.company_name || '',
+    contact_person: vendor.contact_person || '',
+    email: vendor.email || '',
+    phone: vendor.phone || '',
+    address: vendor.address || '',
+    description: vendor.description || ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("vendors")
+        .update(formData)
+        .eq("id", vendor.id);
+
+      if (error) throw error;
+
+      toast.success("Vendor updated successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error updating vendor:", error);
+      toast.error("Failed to update vendor");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="company_name">Company Name *</Label>
+          <Input
+            id="company_name"
+            value={formData.company_name}
+            onChange={(e) => setFormData({...formData, company_name: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="contact_person">Contact Person</Label>
+          <Input
+            id="contact_person"
+            value={formData.contact_person}
+            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="address">Address</Label>
+        <Input
+          id="address"
+          value={formData.address}
+          onChange={(e) => setFormData({...formData, address: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <div className="flex space-x-2">
+        <Button type="submit" className="flex-1">Update Vendor</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
     </form>
   );
 };
