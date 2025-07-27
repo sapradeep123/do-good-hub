@@ -1176,34 +1176,34 @@ const AdminDashboard = () => {
                 </Table>
               </CardContent>
             </Card>
-
-            {/* Edit Package Dialog */}
-            <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Edit Package</DialogTitle>
-                  <DialogDescription>Update package information</DialogDescription>
-                </DialogHeader>
-                {editingPackage && (
-                  <EditPackageForm 
-                    package={editingPackage}
-                    ngos={ngos}
-                    vendors={vendors}
-                    onSuccess={() => {
-                      setIsEditPackageOpen(false);
-                      setEditingPackage(null);
-                      fetchPackages();
-                    }}
-                    onCancel={() => {
-                      setIsEditPackageOpen(false);
-                      setEditingPackage(null);
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Package Dialog - Moved outside tabs to be accessible from any tab */}
+        <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Package</DialogTitle>
+              <DialogDescription>Update package information</DialogDescription>
+            </DialogHeader>
+            {editingPackage && (
+              <EditPackageForm 
+                package={editingPackage}
+                ngos={ngos}
+                vendors={vendors}
+                onSuccess={() => {
+                  setIsEditPackageOpen(false);
+                  setEditingPackage(null);
+                  fetchPackages();
+                }}
+                onCancel={() => {
+                  setIsEditPackageOpen(false);
+                  setEditingPackage(null);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
