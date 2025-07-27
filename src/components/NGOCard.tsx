@@ -1,7 +1,8 @@
-import { MapPin, Users, Target } from "lucide-react";
+import { MapPin, Users } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useNavigate } from "react-router-dom";
 
 interface NGOCardProps {
   id: string;
@@ -10,25 +11,24 @@ interface NGOCardProps {
   location: string;
   category: string;
   imageUrl: string;
-  totalRaised: number;
   donorsCount: number;
   isVerified?: boolean;
 }
 
 export const NGOCard = ({
+  id,
   name,
   description,
   location,
   category,
   imageUrl,
-  totalRaised,
   donorsCount,
   isVerified = false,
 }: NGOCardProps) => {
-  const formatAmount = (amount: number) => {
-    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
-    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
-    return `₹${amount}`;
+  const navigate = useNavigate();
+
+  const handleViewAndDonate = () => {
+    navigate(`/ngo/${id}`);
   };
 
   return (
@@ -62,20 +62,16 @@ export const NGOCard = ({
           {description}
         </p>
         
-        <div className="flex items-center justify-between text-sm">
-          <div className="flex items-center gap-1">
-            <Target className="h-4 w-4 text-primary" />
-            <span className="font-medium">{formatAmount(totalRaised)} raised</span>
-          </div>
+        <div className="flex items-center justify-center">
           <div className="flex items-center gap-1">
             <Users className="h-4 w-4 text-muted-foreground" />
-            <span>{donorsCount} donors</span>
+            <span className="text-sm">{donorsCount} donors</span>
           </div>
         </div>
       </CardContent>
 
       <CardFooter className="pt-0">
-        <Button className="w-full" variant="donate">
+        <Button className="w-full" variant="donate" onClick={handleViewAndDonate}>
           View & Donate
         </Button>
       </CardFooter>

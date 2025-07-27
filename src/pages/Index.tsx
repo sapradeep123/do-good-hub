@@ -76,7 +76,6 @@ const Index = () => {
                 location={ngo.location}
                 category={ngo.category}
                 imageUrl={ngo.imageUrl}
-                totalRaised={ngo.totalRaised}
                 donorsCount={ngo.donorsCount}
                 isVerified={ngo.isVerified}
               />
