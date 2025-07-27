@@ -807,9 +807,8 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* Edit NGO Dialog */}
             <Dialog open={isEditNGOOpen} onOpenChange={setIsEditNGOOpen}>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">{/*Fixed: Added scrolling*/}
                 <DialogHeader>
                   <DialogTitle>Edit NGO</DialogTitle>
                   <DialogDescription>Update NGO information</DialogDescription>
@@ -918,7 +917,7 @@ const AdminDashboard = () => {
 
             {/* Edit Vendor Dialog */}
             <Dialog open={isEditVendorOpen} onOpenChange={setIsEditVendorOpen}>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">{/*Fixed: Added scrolling*/}
                 <DialogHeader>
                   <DialogTitle>Edit Vendor</DialogTitle>
                   <DialogDescription>Update vendor information</DialogDescription>
@@ -1508,6 +1507,7 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
       })) || [];
 
       setAvailableUsers(users);
+      console.log('Fetched NGO users:', users); // Debug log
     } catch (error) {
       console.error("Error fetching NGO users:", error);
     }
@@ -1547,7 +1547,8 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6 max-h-full">
+      <form onSubmit={handleSubmit} className="space-y-4">{/*Fixed: Added proper container*/}
       {/* Associated User Info */}
       {associatedUser && (
         <Card className="p-4 bg-blue-50 dark:bg-blue-950">
@@ -1584,13 +1585,17 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
           <SelectTrigger>
             <SelectValue placeholder="Select user account" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-auto">
             <SelectItem value="none">No user assigned</SelectItem>
-            {availableUsers.map((user) => (
-              <SelectItem key={user.id} value={user.id}>
-                {user.first_name} {user.last_name} ({user.email})
-              </SelectItem>
-            ))}
+            {availableUsers.length === 0 ? (
+              <SelectItem value="no-users" disabled>No NGO users available</SelectItem>
+            ) : (
+              availableUsers.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.first_name} {user.last_name} ({user.email})
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -1696,7 +1701,8 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
         <Button type="submit" className="flex-1">Update NGO</Button>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 };
 
@@ -1824,7 +1830,8 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6 max-h-full">
+      <form onSubmit={handleSubmit} className="space-y-4">{/*Fixed: Added proper container*/}
       {/* Associated User Info */}
       {associatedUser && (
         <Card className="p-4 bg-green-50 dark:bg-green-950">
@@ -1861,13 +1868,17 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
           <SelectTrigger>
             <SelectValue placeholder="Select user account" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-auto">
             <SelectItem value="none">No user assigned</SelectItem>
-            {availableUsers.map((user) => (
-              <SelectItem key={user.id} value={user.id}>
-                {user.first_name} {user.last_name} ({user.email})
-              </SelectItem>
-            ))}
+            {availableUsers.length === 0 ? (
+              <SelectItem value="no-users" disabled>No vendor users available</SelectItem>
+            ) : (
+              availableUsers.map((user) => (
+                <SelectItem key={user.id} value={user.id}>
+                  {user.first_name} {user.last_name} ({user.email})
+                </SelectItem>
+              ))
+            )}
           </SelectContent>
         </Select>
       </div>
@@ -1934,7 +1945,8 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
         <Button type="submit" className="flex-1">Update Vendor</Button>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 };
 
