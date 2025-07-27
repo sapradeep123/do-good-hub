@@ -3,8 +3,9 @@ import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockNGOs } from "@/data/ngos";
-import { ArrowLeft, MapPin, Phone, Mail, Globe, Users, CheckCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, Mail, Globe, Users, CheckCircle, Heart, Info, Contact } from "lucide-react";
 
 const NGODetail = () => {
   const { id } = useParams();
@@ -95,63 +96,171 @@ const NGODetail = () => {
         </div>
       </section>
 
-      {/* Main Content */}
+      {/* Main Content with Tabs */}
       <section className="py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Content */}
-            <div className="lg:col-span-2 space-y-8">
-              {/* Our Story */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Our Story</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">{ngo.story}</p>
-                </CardContent>
-              </Card>
+            {/* Left Column - Tabbed Content */}
+            <div className="lg:col-span-2">
+              <Tabs defaultValue="story" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="story" className="flex items-center gap-2">
+                    <Heart className="h-4 w-4" />
+                    Our Story
+                  </TabsTrigger>
+                  <TabsTrigger value="about" className="flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    About Us
+                  </TabsTrigger>
+                  <TabsTrigger value="contact" className="flex items-center gap-2">
+                    <Contact className="h-4 w-4" />
+                    Contact
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* About Us */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>About Us</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">{ngo.aboutUs}</p>
-                </CardContent>
-              </Card>
-
-              {/* Contact Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Contact Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Mail className="h-5 w-5 text-primary" />
-                      <span>{ngo.contact.email}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-5 w-5 text-primary" />
-                      <span>{ngo.contact.phone}</span>
-                    </div>
-                    {ngo.contact.website && (
-                      <div className="flex items-center gap-3">
-                        <Globe className="h-5 w-5 text-primary" />
-                        <a 
-                          href={ngo.contact.website} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          {ngo.contact.website}
-                        </a>
+                <TabsContent value="story" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Heart className="h-5 w-5 text-primary" />
+                        Our Story
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="prose prose-gray max-w-none">
+                        <p className="text-muted-foreground leading-relaxed text-base">
+                          {ngo.story}
+                        </p>
+                        <div className="mt-6 p-4 bg-primary/5 rounded-lg border-l-4 border-primary">
+                          <p className="text-sm text-muted-foreground italic">
+                            "Every donation creates a ripple effect of positive change in our community. 
+                            Join us in making a lasting impact on the lives we touch."
+                          </p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="about" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Info className="h-5 w-5 text-primary" />
+                        About Our Organization
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <p className="text-muted-foreground leading-relaxed text-base">
+                          {ngo.aboutUs}
+                        </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="bg-muted/50 p-4 rounded-lg">
+                            <h4 className="font-semibold mb-2 text-primary">Our Mission</h4>
+                            <p className="text-sm text-muted-foreground">
+                              To create sustainable positive change in communities through transparent and impactful programs.
+                            </p>
+                          </div>
+                          <div className="bg-muted/50 p-4 rounded-lg">
+                            <h4 className="font-semibold mb-2 text-primary">Our Vision</h4>
+                            <p className="text-sm text-muted-foreground">
+                              A world where every individual has access to basic necessities and opportunities for growth.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-primary/5 p-4 rounded-lg">
+                          <h4 className="font-semibold mb-3 text-primary">Key Focus Areas</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            <Badge variant="secondary" className="justify-center py-2">{ngo.category}</Badge>
+                            <Badge variant="secondary" className="justify-center py-2">Community Development</Badge>
+                            <Badge variant="secondary" className="justify-center py-2">Capacity Building</Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="contact" className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Contact className="h-5 w-5 text-primary" />
+                        Get in Touch
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <h4 className="font-semibold text-lg">Contact Information</h4>
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                <Mail className="h-5 w-5 text-primary flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Email</p>
+                                  <p className="font-medium">{ngo.contact.email}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                <Phone className="h-5 w-5 text-primary flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Phone</p>
+                                  <p className="font-medium">{ngo.contact.phone}</p>
+                                </div>
+                              </div>
+                              {ngo.contact.website && (
+                                <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                  <Globe className="h-5 w-5 text-primary flex-shrink-0" />
+                                  <div>
+                                    <p className="text-sm text-muted-foreground">Website</p>
+                                    <a 
+                                      href={ngo.contact.website} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="font-medium text-primary hover:underline"
+                                    >
+                                      Visit Website
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                                <MapPin className="h-5 w-5 text-primary flex-shrink-0" />
+                                <div>
+                                  <p className="text-sm text-muted-foreground">Location</p>
+                                  <p className="font-medium">{ngo.location}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <h4 className="font-semibold text-lg">Office Hours</h4>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between p-2 bg-muted/50 rounded">
+                                <span className="text-muted-foreground">Monday - Friday</span>
+                                <span className="font-medium">9:00 AM - 6:00 PM</span>
+                              </div>
+                              <div className="flex justify-between p-2 bg-muted/50 rounded">
+                                <span className="text-muted-foreground">Saturday</span>
+                                <span className="font-medium">10:00 AM - 4:00 PM</span>
+                              </div>
+                              <div className="flex justify-between p-2 bg-muted/50 rounded">
+                                <span className="text-muted-foreground">Sunday</span>
+                                <span className="font-medium">Closed</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </div>
 
             {/* Right Column - Donation Packages */}
