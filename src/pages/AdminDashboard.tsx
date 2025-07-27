@@ -294,6 +294,84 @@ const AdminDashboard = () => {
     }
   };
 
+  // Admin password reset function
+  const adminPasswordReset = async (email: string) => {
+    try {
+      // Get the user from profiles
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("email", email)
+        .single();
+
+      if (profileError || !profile) {
+        toast.error("User not found");
+        return;
+      }
+
+      // Generate cryptographically secure token
+      const tokenArray = new Uint8Array(32);
+      crypto.getRandomValues(tokenArray);
+      const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
+      
+      // Store the reset request
+      const { error } = await supabase
+        .from("password_reset_requests")
+        .insert({
+          email: email.trim().toLowerCase(),
+          token,
+          expires_at: new Date(Date.now() + 900000).toISOString(), // 15 minutes
+          used: false
+        });
+
+      if (error) {
+        toast.error("Failed to generate reset token");
+        return;
+      }
+
+      // Show token to admin (development mode)
+      toast.success(`Password reset token generated for ${email}`, {
+        description: `Token: ${token}`,
+        duration: 10000
+      });
+      
+      console.log(`Password reset token for ${email}:`, token);
+    } catch (error) {
+      console.error("Error generating password reset token:", error);
+      toast.error("Failed to generate password reset token");
+    }
+  };
+
+  // Create sample data function
+  const createSampleData = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('create-sample-data');
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        toast.success("Sample data created successfully!", {
+          description: `Created ${data.created_users?.length || 0} sample users with associated NGOs and vendors`
+        });
+        
+        // Refresh all data
+        await Promise.all([
+          fetchUsers(),
+          fetchNGOs(), 
+          fetchVendors(),
+          fetchPackages()
+        ]);
+      } else {
+        throw new Error("Failed to create sample data");
+      }
+    } catch (error) {
+      console.error("Error creating sample data:", error);
+      toast.error("Failed to create sample data");
+    }
+  };
+
   const editNGO = (ngo: NGO) => {
     setEditingNGO(ngo);
     setIsEditNGOOpen(true);
@@ -596,6 +674,16 @@ const AdminDashboard = () => {
                   <CardDescription>Manage user roles and permissions</CardDescription>
                 </div>
                 <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      onClick={createSampleData}
+                      className="bg-blue-50 hover:bg-blue-100"
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Create Sample Data
+                    </Button>
+                  </div>
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="h-4 w-4 mr-2" />
@@ -666,6 +754,15 @@ const AdminDashboard = () => {
                               onClick={() => editUser(user)}
                             >
                               <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => adminPasswordReset(user.email)}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Generate password reset token"
+                            >
+                              <Key className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
