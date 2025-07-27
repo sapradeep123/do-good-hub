@@ -30,40 +30,44 @@ export const Header = () => {
           <span className="text-xl font-bold text-foreground">CareFund</span>
         </div>
         
-        <div className="hidden md:flex items-center">
-          <NavigationMenu>
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
-                  NGOs
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
-                  How it Works
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
-                  About
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
-        </div>
+        {!user && (
+          <div className="hidden md:flex items-center">
+            <NavigationMenu>
+              <NavigationMenuList>
+                <NavigationMenuItem>
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                    NGOs
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                    How it Works
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                    About
+                  </NavigationMenuLink>
+                </NavigationMenuItem>
+              </NavigationMenuList>
+            </NavigationMenu>
+          </div>
+        )}
 
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search NGOs..."
-                className="pl-10 w-64"
-              />
+          {!user && (
+            <div className="hidden md:flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search NGOs..."
+                  className="pl-10 w-64"
+                />
+              </div>
             </div>
-          </div>
+          )}
           {user ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 ml-auto">
               <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
                 Dashboard
               </Button>
