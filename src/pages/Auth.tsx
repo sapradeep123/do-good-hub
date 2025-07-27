@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 
@@ -74,12 +75,43 @@ const Auth = () => {
         description: error.message,
         variant: "destructive",
       });
+      setIsLoading(false);
     } else {
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
-      navigate("/");
+      // Get the current session after sign in
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        // Check user role and redirect accordingly
+        try {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+
+          if (roleData?.role === "ngo") {
+            navigate("/ngo-dashboard");
+          } else if (roleData?.role === "admin") {
+            navigate("/admin");
+          } else {
+            navigate("/dashboard");
+          }
+          
+          toast({
+            title: "Welcome back!",
+            description: "You have successfully logged in.",
+          });
+        } catch (roleError) {
+          // Default redirect if role check fails
+          navigate("/dashboard");
+          toast({
+            title: "Welcome back!",
+            description: "You have successfully logged in.",
+          });
+        }
+      } else {
+        navigate("/dashboard");
+      }
     }
     setIsLoading(false);
   };

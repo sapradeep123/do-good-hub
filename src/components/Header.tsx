@@ -1,4 +1,4 @@
-import { Heart, Search, User, LogOut, Shield } from "lucide-react";
+import { Heart, Search, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,6 +18,27 @@ import {
 export const Header = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      checkUserRole();
+    }
+  }, [user]);
+
+  const checkUserRole = async () => {
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .maybeSingle();
+      
+      setUserRole(data?.role || null);
+    } catch (error) {
+      setUserRole(null);
+    }
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -70,11 +91,28 @@ export const Header = () => {
           )}
           {user ? (
             <div className="flex items-center gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
-                Dashboard
+              {/* Home button for all users */}
+              <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+                Home
               </Button>
-              {/* Check if user is admin and show admin link */}
-              <AdminButton />
+              
+              {/* Role-specific dashboard button */}
+              {userRole === "ngo" ? (
+                <Button variant="outline" size="sm" onClick={() => navigate("/ngo-dashboard")}>
+                  Dashboard
+                </Button>
+              ) : userRole === "admin" ? (
+                <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
+                  Admin
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
+                  Dashboard
+                </Button>
+              )}
+              
+              {/* Admin button is not needed here since we handle it above */}
+              
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-4 w-4" />
                 <span className="hidden sm:inline">{user.email}</span>
@@ -97,47 +135,5 @@ export const Header = () => {
         </div>
       </div>
     </header>
-  );
-};
-
-// Admin Button Component
-const AdminButton = () => {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      checkAdminRole();
-    }
-  }, [user]);
-
-  const checkAdminRole = async () => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "admin")
-        .single();
-
-      setIsAdmin(!!data);
-    } catch (error) {
-      setIsAdmin(false);
-    }
-  };
-
-  if (!isAdmin) return null;
-
-  return (
-    <Button 
-      variant="outline" 
-      size="sm" 
-      onClick={() => navigate("/admin")}
-      className="border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-950"
-    >
-      <Shield className="h-4 w-4 sm:mr-2" />
-      <span className="hidden sm:inline">Admin</span>
-    </Button>
   );
 };
