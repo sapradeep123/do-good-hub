@@ -43,9 +43,48 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchDonations();
+      checkUserRole();
     }
   }, [user]);
+
+  const checkUserRole = async () => {
+    try {
+      // Check if user has NGO role
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .eq("role", "ngo")
+        .single();
+
+      if (roleData && !roleError) {
+        // User is an NGO, redirect to NGO dashboard
+        navigate("/ngo-dashboard");
+        return;
+      }
+
+      // Check if user has admin role
+      const { data: adminRoleData, error: adminRoleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .single();
+
+      if (adminRoleData && !adminRoleError) {
+        // User is an admin, redirect to admin dashboard
+        navigate("/admin");
+        return;
+      }
+
+      // User is a regular user, fetch their donations
+      fetchDonations();
+    } catch (error) {
+      console.error("Error checking user role:", error);
+      // If there's an error, default to regular user behavior
+      fetchDonations();
+    }
+  };
 
   const fetchDonations = async () => {
     try {
