@@ -72,48 +72,29 @@ const PasswordReset = () => {
     setIsLoading(true);
 
     try {
-      // Verify the token
-      const { data: resetRequest, error: tokenError } = await supabase
-        .from("password_reset_requests")
-        .select("*")
-        .eq("email", email)
-        .eq("token", resetToken)
-        .eq("used", false)
-        .gt("expires_at", new Date().toISOString())
-        .single();
+      // Call the edge function to reset password
+      const response = await fetch(`https://cmjfaekfldzpsyuvctxs.supabase.co/functions/v1/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtamZhZWtmbGR6cHN5dXZjdHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MzY0OTIsImV4cCI6MjA2OTIxMjQ5Mn0.6GOq4dqYWK70i_v0DDMi5sHZqJmb9Qlasd3vF0ZRyn4`,
+        },
+        body: JSON.stringify({
+          email,
+          token: resetToken,
+          newPassword
+        })
+      });
 
-      if (tokenError || !resetRequest) {
-        toast.error("Invalid or expired reset token");
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast.error(result.error || 'Failed to reset password');
         setIsLoading(false);
         return;
       }
 
-      // Get the user ID
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        toast.error("User not found");
-        setIsLoading(false);
-        return;
-      }
-
-      // Update the password using Supabase admin functions
-      // Note: In a real app, this would be done via an edge function with admin privileges
-      // For development, we'll use the auth.updateUser method which requires the user to be logged in
-      
-      // Mark the token as used
-      await supabase
-        .from("password_reset_requests")
-        .update({ used: true })
-        .eq("id", resetRequest.id);
-
-      toast.success("Password reset token verified! Please sign in with your new credentials.");
-      toast.info("Note: In development mode, you'll need to contact an admin to actually change the password in the auth system.");
-      
+      toast.success("Password reset successful! You can now sign in with your new password.");
       navigate("/auth");
     } catch (error) {
       console.error("Error resetting password:", error);
