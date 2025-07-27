@@ -1,8 +1,10 @@
-import { Heart, Search, User, LogOut } from "lucide-react";
+import { Heart, Search, User, LogOut, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -71,6 +73,8 @@ export const Header = () => {
               <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")}>
                 Dashboard
               </Button>
+              {/* Check if user is admin and show admin link */}
+              <AdminButton />
               <div className="flex items-center gap-2 text-sm">
                 <User className="h-4 w-4" />
                 <span className="hidden sm:inline">{user.email}</span>
@@ -93,5 +97,47 @@ export const Header = () => {
         </div>
       </div>
     </header>
+  );
+};
+
+// Admin Button Component
+const AdminButton = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      checkAdminRole();
+    }
+  }, [user]);
+
+  const checkAdminRole = async () => {
+    try {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .single();
+
+      setIsAdmin(!!data);
+    } catch (error) {
+      setIsAdmin(false);
+    }
+  };
+
+  if (!isAdmin) return null;
+
+  return (
+    <Button 
+      variant="outline" 
+      size="sm" 
+      onClick={() => navigate("/admin")}
+      className="border-orange-200 text-orange-700 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-300 dark:hover:bg-orange-950"
+    >
+      <Shield className="h-4 w-4 sm:mr-2" />
+      <span className="hidden sm:inline">Admin</span>
+    </Button>
   );
 };

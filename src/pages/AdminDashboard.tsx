@@ -1,0 +1,918 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { Header } from "@/components/Header";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+
+interface User {
+  id: string;
+  email: string;
+  created_at: string;
+  role?: string;
+}
+
+interface NGO {
+  id: string;
+  name: string;
+  email: string;
+  location: string;
+  category: string;
+  is_verified: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface Vendor {
+  id: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+interface Package {
+  id: string;
+  title: string;
+  amount: number;
+  category: string;
+  is_active: boolean;
+  ngo_name?: string;
+  vendor_name?: string;
+  created_at: string;
+}
+
+const AdminDashboard = () => {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Data states
+  const [users, setUsers] = useState<User[]>([]);
+  const [ngos, setNGOs] = useState<NGO[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  
+  // Modal states
+  const [isCreateNGOOpen, setIsCreateNGOOpen] = useState(false);
+  const [isCreateVendorOpen, setIsCreateVendorOpen] = useState(false);
+  const [isCreatePackageOpen, setIsCreatePackageOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    } else if (user) {
+      checkAdminRole();
+    }
+  }, [user, loading, navigate]);
+
+  const checkAdminRole = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error checking admin role:", error);
+        toast.error("Access denied: Admin role required");
+        navigate("/dashboard");
+        return;
+      }
+
+      if (!data) {
+        toast.error("Access denied: Admin role required");
+        navigate("/dashboard");
+        return;
+      }
+
+      setIsAdmin(true);
+      await fetchAllData();
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Access denied");
+      navigate("/dashboard");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchAllData = async () => {
+    await Promise.all([
+      fetchUsers(),
+      fetchNGOs(),
+      fetchVendors(),
+      fetchPackages()
+    ]);
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("user_id, email");
+
+      if (profilesError) throw profilesError;
+
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      if (rolesError) throw rolesError;
+
+      const usersWithRoles = profiles?.map(profile => ({
+        id: profile.user_id,
+        email: profile.email || '',
+        created_at: '',
+        role: roles?.find(r => r.user_id === profile.user_id)?.role || 'user'
+      })) || [];
+
+      setUsers(usersWithRoles);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      toast.error("Failed to fetch users");
+    }
+  };
+
+  const fetchNGOs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("ngos")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setNGOs(data || []);
+    } catch (error) {
+      console.error("Error fetching NGOs:", error);
+      toast.error("Failed to fetch NGOs");
+    }
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      toast.error("Failed to fetch vendors");
+    }
+  };
+
+  const fetchPackages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("packages")
+        .select(`
+          *,
+          ngos!inner(name),
+          vendors(company_name)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const packagesWithNames = data?.map(pkg => ({
+        ...pkg,
+        ngo_name: pkg.ngos?.name,
+        vendor_name: pkg.vendors?.company_name
+      })) || [];
+
+      setPackages(packagesWithNames);
+    } catch (error) {
+      console.error("Error fetching packages:", error);
+      toast.error("Failed to fetch packages");
+    }
+  };
+
+  const updateUserRole = async (userId: string, newRole: string) => {
+    try {
+      const { error } = await supabase
+        .from("user_roles")
+        .upsert({
+          user_id: userId,
+          role: newRole as 'admin' | 'ngo' | 'vendor' | 'user'
+        });
+
+      if (error) throw error;
+
+      toast.success("User role updated successfully");
+      await fetchUsers();
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      toast.error("Failed to update user role");
+    }
+  };
+
+  if (loading || isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+            <p>You need admin privileges to access this page.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+          <p className="text-muted-foreground">
+            Manage users, NGOs, vendors, and packages
+          </p>
+        </div>
+
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{users.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active NGOs</CardTitle>
+              <Building className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{ngos.filter(n => n.is_active).length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{vendors.filter(v => v.is_active).length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Packages</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{packages.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Management Tabs */}
+        <Tabs defaultValue="users" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="ngos">NGOs</TabsTrigger>
+            <TabsTrigger value="vendors">Vendors</TabsTrigger>
+            <TabsTrigger value="packages">Packages</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="users" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>Manage user roles and permissions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) => updateUserRole(user.id, value)}
+                          >
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="user">User</SelectItem>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="ngo">NGO</SelectItem>
+                              <SelectItem value="vendor">Vendor</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ngos" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>NGO Management</CardTitle>
+                  <CardDescription>Manage NGOs and their verification status</CardDescription>
+                </div>
+                <Dialog open={isCreateNGOOpen} onOpenChange={setIsCreateNGOOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add NGO
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New NGO</DialogTitle>
+                      <DialogDescription>Add a new NGO to the platform</DialogDescription>
+                    </DialogHeader>
+                    <CreateNGOForm 
+                      onSuccess={() => {
+                        setIsCreateNGOOpen(false);
+                        fetchNGOs();
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Verified</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ngos.map((ngo) => (
+                      <TableRow key={ngo.id}>
+                        <TableCell className="font-medium">{ngo.name}</TableCell>
+                        <TableCell>{ngo.email}</TableCell>
+                        <TableCell>{ngo.location}</TableCell>
+                        <TableCell>{ngo.category}</TableCell>
+                        <TableCell>
+                          <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
+                            {ngo.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
+                            {ngo.is_verified ? 'Verified' : 'Pending'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="vendors" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Vendor Management</CardTitle>
+                  <CardDescription>Manage vendors and their services</CardDescription>
+                </div>
+                <Dialog open={isCreateVendorOpen} onOpenChange={setIsCreateVendorOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Vendor
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New Vendor</DialogTitle>
+                      <DialogDescription>Add a new vendor to the platform</DialogDescription>
+                    </DialogHeader>
+                    <CreateVendorForm 
+                      onSuccess={() => {
+                        setIsCreateVendorOpen(false);
+                        fetchVendors();
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendors.map((vendor) => (
+                      <TableRow key={vendor.id}>
+                        <TableCell className="font-medium">{vendor.company_name}</TableCell>
+                        <TableCell>{vendor.email}</TableCell>
+                        <TableCell>{vendor.phone}</TableCell>
+                        <TableCell>
+                          <Badge variant={vendor.is_active ? 'default' : 'destructive'}>
+                            {vendor.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(vendor.created_at), 'MMM dd, yyyy')}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="packages" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Package Management</CardTitle>
+                  <CardDescription>Manage donation packages</CardDescription>
+                </div>
+                <Dialog open={isCreatePackageOpen} onOpenChange={setIsCreatePackageOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Package
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New Package</DialogTitle>
+                      <DialogDescription>Add a new donation package</DialogDescription>
+                    </DialogHeader>
+                    <CreatePackageForm 
+                      ngos={ngos}
+                      vendors={vendors}
+                      onSuccess={() => {
+                        setIsCreatePackageOpen(false);
+                        fetchPackages();
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Title</TableHead>
+                      <TableHead>NGO</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {packages.map((pkg) => (
+                      <TableRow key={pkg.id}>
+                        <TableCell className="font-medium">{pkg.title}</TableCell>
+                        <TableCell>{pkg.ngo_name}</TableCell>
+                        <TableCell>{pkg.vendor_name || 'N/A'}</TableCell>
+                        <TableCell>₹{Number(pkg.amount).toLocaleString()}</TableCell>
+                        <TableCell>{pkg.category}</TableCell>
+                        <TableCell>
+                          <Badge variant={pkg.is_active ? 'default' : 'destructive'}>
+                            {pkg.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{format(new Date(pkg.created_at), 'MMM dd, yyyy')}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
+
+// Create NGO Form Component
+const CreateNGOForm = ({ onSuccess }: { onSuccess: () => void }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    description: '',
+    mission: '',
+    location: '',
+    category: '',
+    phone: '',
+    website_url: '',
+    registration_number: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .insert([formData]);
+
+      if (error) throw error;
+
+      toast.success("NGO created successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating NGO:", error);
+      toast.error("Failed to create NGO");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="name">Name *</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="email">Email *</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            required
+          />
+        </div>
+      </div>
+      
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="location">Location</Label>
+          <Input
+            id="location"
+            value={formData.location}
+            onChange={(e) => setFormData({...formData, location: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select 
+            value={formData.category} 
+            onValueChange={(value) => setFormData({...formData, category: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Education">Education</SelectItem>
+              <SelectItem value="Healthcare">Healthcare</SelectItem>
+              <SelectItem value="Environment">Environment</SelectItem>
+              <SelectItem value="Nutrition">Nutrition</SelectItem>
+              <SelectItem value="Women Empowerment">Women Empowerment</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="registration_number">Registration Number</Label>
+          <Input
+            id="registration_number"
+            value={formData.registration_number}
+            onChange={(e) => setFormData({...formData, registration_number: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full">Create NGO</Button>
+    </form>
+  );
+};
+
+// Create Vendor Form Component
+const CreateVendorForm = ({ onSuccess }: { onSuccess: () => void }) => {
+  const [formData, setFormData] = useState({
+    company_name: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    address: '',
+    description: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("vendors")
+        .insert([formData]);
+
+      if (error) throw error;
+
+      toast.success("Vendor created successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating vendor:", error);
+      toast.error("Failed to create vendor");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="company_name">Company Name *</Label>
+          <Input
+            id="company_name"
+            value={formData.company_name}
+            onChange={(e) => setFormData({...formData, company_name: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="contact_person">Contact Person</Label>
+          <Input
+            id="contact_person"
+            value={formData.contact_person}
+            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="address">Address</Label>
+        <Input
+          id="address"
+          value={formData.address}
+          onChange={(e) => setFormData({...formData, address: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <Button type="submit" className="w-full">Create Vendor</Button>
+    </form>
+  );
+};
+
+// Create Package Form Component
+const CreatePackageForm = ({ 
+  ngos, 
+  vendors, 
+  onSuccess 
+}: { 
+  ngos: NGO[]; 
+  vendors: Vendor[]; 
+  onSuccess: () => void; 
+}) => {
+  const [formData, setFormData] = useState({
+    ngo_id: '',
+    vendor_id: '',
+    title: '',
+    description: '',
+    amount: '',
+    category: '',
+    delivery_timeline: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .insert([{
+          ...formData,
+          amount: parseFloat(formData.amount),
+          vendor_id: formData.vendor_id || null
+        }]);
+
+      if (error) throw error;
+
+      toast.success("Package created successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating package:", error);
+      toast.error("Failed to create package");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="title">Title *</Label>
+        <Input
+          id="title"
+          value={formData.title}
+          onChange={(e) => setFormData({...formData, title: e.target.value})}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="ngo_id">NGO *</Label>
+          <Select 
+            value={formData.ngo_id} 
+            onValueChange={(value) => setFormData({...formData, ngo_id: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select NGO" />
+            </SelectTrigger>
+            <SelectContent>
+              {ngos.map((ngo) => (
+                <SelectItem key={ngo.id} value={ngo.id}>
+                  {ngo.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="vendor_id">Vendor (Optional)</Label>
+          <Select 
+            value={formData.vendor_id} 
+            onValueChange={(value) => setFormData({...formData, vendor_id: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Vendor" />
+            </SelectTrigger>
+            <SelectContent>
+              {vendors.map((vendor) => (
+                <SelectItem key={vendor.id} value={vendor.id}>
+                  {vendor.company_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="amount">Amount *</Label>
+          <Input
+            id="amount"
+            type="number"
+            value={formData.amount}
+            onChange={(e) => setFormData({...formData, amount: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select 
+            value={formData.category} 
+            onValueChange={(value) => setFormData({...formData, category: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Food">Food</SelectItem>
+              <SelectItem value="Education">Education</SelectItem>
+              <SelectItem value="Healthcare">Healthcare</SelectItem>
+              <SelectItem value="Shelter">Shelter</SelectItem>
+              <SelectItem value="Emergency">Emergency</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
+        <Input
+          id="delivery_timeline"
+          value={formData.delivery_timeline}
+          onChange={(e) => setFormData({...formData, delivery_timeline: e.target.value})}
+          placeholder="e.g., 7-10 days"
+        />
+      </div>
+
+      <Button type="submit" className="w-full">Create Package</Button>
+    </form>
+  );
+};
+
+export default AdminDashboard;

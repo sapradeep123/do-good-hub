@@ -136,10 +136,21 @@ const Auth = () => {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing In..." : "Sign In"}
-                  </Button>
-                </form>
+                   <Button type="submit" className="w-full" disabled={isLoading}>
+                     {isLoading ? "Signing In..." : "Sign In"}
+                   </Button>
+                   
+                   <div className="text-center">
+                     <Button 
+                       type="button"
+                       variant="link" 
+                       onClick={() => navigate("/password-reset")}
+                       className="text-sm"
+                     >
+                       Forgot your password?
+                     </Button>
+                   </div>
+                 </form>
               </TabsContent>
               
               <TabsContent value="signup">
