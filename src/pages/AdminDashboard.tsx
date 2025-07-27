@@ -1590,9 +1590,20 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
 
       if (rolesError) throw rolesError;
 
+      // Get all NGOs to find which users are already assigned
+      const { data: allNGOs, error: ngosError } = await supabase
+        .from("ngos")
+        .select("user_id");
+
+      if (ngosError) throw ngosError;
+
+      const assignedUserIds = allNGOs?.map(ngo => ngo.user_id).filter(Boolean) || [];
       const ngoUserIds = ngoRoles?.map(role => role.user_id) || [];
+      
+      // Only show unassigned NGO users (excluding current NGO's user)
       const users = profiles?.filter(profile => 
-        ngoUserIds.includes(profile.user_id)
+        ngoUserIds.includes(profile.user_id) && 
+        (!assignedUserIds.includes(profile.user_id) || profile.user_id === ngo.user_id)
       ).map(profile => ({
         id: profile.user_id,
         email: profile.email || '',
@@ -1604,7 +1615,6 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
       })) || [];
 
       setAvailableUsers(users);
-      console.log('Fetched NGO users:', users); // Debug log
     } catch (error) {
       console.error("Error fetching NGO users:", error);
     }
@@ -1874,9 +1884,20 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
 
       if (rolesError) throw rolesError;
 
+      // Get all vendors to find which users are already assigned
+      const { data: allVendors, error: vendorsError } = await supabase
+        .from("vendors")
+        .select("user_id");
+
+      if (vendorsError) throw vendorsError;
+
+      const assignedUserIds = allVendors?.map(vendor => vendor.user_id).filter(Boolean) || [];
       const vendorUserIds = vendorRoles?.map(role => role.user_id) || [];
+      
+      // Only show unassigned vendor users (excluding current vendor's user)
       const users = profiles?.filter(profile => 
-        vendorUserIds.includes(profile.user_id)
+        vendorUserIds.includes(profile.user_id) && 
+        (!assignedUserIds.includes(profile.user_id) || profile.user_id === vendor.user_id)
       ).map(profile => ({
         id: profile.user_id,
         email: profile.email || '',
