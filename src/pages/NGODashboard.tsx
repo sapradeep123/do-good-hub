@@ -318,13 +318,9 @@ const NGODashboard = () => {
               <div>
                 <CardTitle>Manage Your NGO</CardTitle>
                 <CardDescription>
-                  View packages, donations, and manage your organization
+                  View assigned packages and track donations
                 </CardDescription>
               </div>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New Package
-              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -358,7 +354,7 @@ const PackagesTable = ({ packages }: PackagesTableProps) => {
     return (
       <div className="text-center py-8">
         <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">No packages found. Create your first package to start receiving donations.</p>
+        <p className="text-muted-foreground">No packages assigned yet. Packages will be assigned by the admin team.</p>
       </div>
     );
   }
