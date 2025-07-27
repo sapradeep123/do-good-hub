@@ -9,8 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Package, Users, TrendingUp, Plus, Edit, Eye, Building2 } from "lucide-react";
+import { Package, Users, TrendingUp, Plus, Edit, Eye, Building2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface NGO {
   id: string;
@@ -64,7 +70,11 @@ const NGODashboard = () => {
   const [ngoData, setNgoData] = useState<NGO[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingPackage, setEditingPackage] = useState<Package | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -111,6 +121,18 @@ const NGODashboard = () => {
         .from("ngos")
         .select("*")
         .eq("user_id", user?.id);
+
+      // Fetch all vendors for package creation
+      const { data: vendorsData, error: vendorsError } = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("is_active", true);
+
+      if (vendorsError) {
+        console.error("Error fetching vendors:", vendorsError);
+      } else {
+        setVendors(vendorsData || []);
+      }
 
       if (ngoError) {
         console.error("Error fetching NGO data:", ngoError);
@@ -166,6 +188,92 @@ const NGODashboard = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCreatePackage = async (packageData: any) => {
+    try {
+      if (ngoData.length === 0) {
+        toast.error("No NGO found");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("packages")
+        .insert({
+          ...packageData,
+          ngo_id: ngoData[0].id,
+          items_included: packageData.items_included.split(',').map((item: string) => item.trim()),
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error creating package:", error);
+        toast.error("Failed to create package");
+        return;
+      }
+
+      toast.success("Package created successfully");
+      setIsCreateDialogOpen(false);
+      await fetchNGOData(); // Refresh data
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("An error occurred while creating the package");
+    }
+  };
+
+  const handleUpdatePackage = async (packageData: any) => {
+    try {
+      if (!editingPackage) return;
+
+      const { error } = await supabase
+        .from("packages")
+        .update({
+          ...packageData,
+          items_included: packageData.items_included.split(',').map((item: string) => item.trim()),
+        })
+        .eq("id", editingPackage.id);
+
+      if (error) {
+        console.error("Error updating package:", error);
+        toast.error("Failed to update package");
+        return;
+      }
+
+      toast.success("Package updated successfully");
+      setIsEditDialogOpen(false);
+      setEditingPackage(null);
+      await fetchNGOData(); // Refresh data
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("An error occurred while updating the package");
+    }
+  };
+
+  const handleDeletePackage = async (packageId: string) => {
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .delete()
+        .eq("id", packageId);
+
+      if (error) {
+        console.error("Error deleting package:", error);
+        toast.error("Failed to delete package");
+        return;
+      }
+
+      toast.success("Package deleted successfully");
+      await fetchNGOData(); // Refresh data
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("An error occurred while deleting the package");
+    }
+  };
+
+  const handleEditPackage = (pkg: Package) => {
+    setEditingPackage(pkg);
+    setIsEditDialogOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -318,9 +426,30 @@ const NGODashboard = () => {
               <div>
                 <CardTitle>Manage Your NGO</CardTitle>
                 <CardDescription>
-                  View assigned packages and track donations
+                  Create and manage packages for your organization
                 </CardDescription>
               </div>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New Package
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Create New Package</DialogTitle>
+                    <DialogDescription>
+                      Add a new donation package for your NGO
+                    </DialogDescription>
+                  </DialogHeader>
+                  <PackageForm 
+                    vendors={vendors} 
+                    onSubmit={handleCreatePackage}
+                    onCancel={() => setIsCreateDialogOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
             </div>
           </CardHeader>
           <CardContent>
@@ -331,7 +460,11 @@ const NGODashboard = () => {
               </TabsList>
 
               <TabsContent value="packages" className="space-y-4">
-                <PackagesTable packages={packages} />
+                <PackagesTable 
+                  packages={packages} 
+                  onEdit={handleEditPackage}
+                  onDelete={handleDeletePackage}
+                />
               </TabsContent>
 
               <TabsContent value="donations" className="space-y-4">
@@ -339,22 +472,47 @@ const NGODashboard = () => {
               </TabsContent>
             </Tabs>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
+
+        {/* Edit Package Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Package</DialogTitle>
+              <DialogDescription>
+                Update package information
+              </DialogDescription>
+            </DialogHeader>
+            {editingPackage && (
+              <PackageForm 
+                vendors={vendors} 
+                initialData={editingPackage}
+                onSubmit={handleUpdatePackage}
+                onCancel={() => {
+                  setIsEditDialogOpen(false);
+                  setEditingPackage(null);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
 interface PackagesTableProps {
   packages: Package[];
+  onEdit: (pkg: Package) => void;
+  onDelete: (packageId: string) => void;
 }
 
-const PackagesTable = ({ packages }: PackagesTableProps) => {
+const PackagesTable = ({ packages, onEdit, onDelete }: PackagesTableProps) => {
   if (packages.length === 0) {
     return (
       <div className="text-center py-8">
         <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">No packages assigned yet. Packages will be assigned by the admin team.</p>
+        <p className="text-muted-foreground">No packages created yet. Create your first package to start raising donations.</p>
       </div>
     );
   }
@@ -399,14 +557,33 @@ const PackagesTable = ({ packages }: PackagesTableProps) => {
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-4 w-4 mr-1" />
-                    View
-                  </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => onEdit(pkg)}>
                     <Edit className="h-4 w-4 mr-1" />
                     Edit
                   </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the package
+                          "{pkg.title}" and remove all associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onDelete(pkg.id)}>
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </TableCell>
             </TableRow>
@@ -471,6 +648,175 @@ const DonationsTable = ({ donations, getStatusColor }: DonationsTableProps) => {
         </TableBody>
       </Table>
     </div>
+  );
+};
+
+interface PackageFormProps {
+  vendors: any[];
+  initialData?: Package;
+  onSubmit: (data: any) => void;
+  onCancel: () => void;
+}
+
+const PackageForm = ({ vendors, initialData, onSubmit, onCancel }: PackageFormProps) => {
+  const [formData, setFormData] = useState({
+    title: initialData?.title || "",
+    description: initialData?.description || "",
+    amount: initialData?.amount || "",
+    category: initialData?.category || "",
+    vendor_id: initialData?.vendor_id || "",
+    delivery_timeline: initialData?.delivery_timeline || "",
+    items_included: initialData?.items_included?.join(', ') || "",
+    is_active: initialData?.is_active ?? true,
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title || !formData.description || !formData.amount || !formData.category) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    onSubmit({
+      ...formData,
+      amount: parseFloat(formData.amount as string),
+    });
+  };
+
+  const categories = [
+    "Education",
+    "Healthcare", 
+    "Food & Nutrition",
+    "Clean Water",
+    "Emergency Relief",
+    "Environment",
+    "Children Welfare",
+    "Women Empowerment",
+    "Elderly Care",
+    "Other"
+  ];
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="title">Package Title *</Label>
+          <Input
+            id="title"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            placeholder="e.g., School Supply Kit"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="amount">Amount (₹) *</Label>
+          <Input
+            id="amount"
+            type="number"
+            value={formData.amount}
+            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+            placeholder="1000"
+            required
+            min="1"
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description *</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Describe what this package includes and its impact..."
+          required
+          rows={3}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="category">Category *</Label>
+          <Select 
+            value={formData.category} 
+            onValueChange={(value) => setFormData({ ...formData, category: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="vendor_id">Vendor</Label>
+          <Select 
+            value={formData.vendor_id} 
+            onValueChange={(value) => setFormData({ ...formData, vendor_id: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select vendor (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              {vendors.map((vendor) => (
+                <SelectItem key={vendor.id} value={vendor.id}>
+                  {vendor.company_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
+        <Input
+          id="delivery_timeline"
+          value={formData.delivery_timeline}
+          onChange={(e) => setFormData({ ...formData, delivery_timeline: e.target.value })}
+          placeholder="e.g., 2-3 weeks"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="items_included">Items Included</Label>
+        <Textarea
+          id="items_included"
+          value={formData.items_included}
+          onChange={(e) => setFormData({ ...formData, items_included: e.target.value })}
+          placeholder="Notebooks, Pens, Pencils, School Bag (separate items with commas)"
+          rows={2}
+        />
+      </div>
+
+      <div className="flex items-center justify-between pt-4">
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="is_active"
+            checked={formData.is_active}
+            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+            className="rounded"
+          />
+          <Label htmlFor="is_active">Active (visible to donors)</Label>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit">
+            {initialData ? "Update Package" : "Create Package"}
+          </Button>
+        </div>
+      </div>
+    </form>
   );
 };
 
