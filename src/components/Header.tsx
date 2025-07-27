@@ -3,6 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+  navigationMenuTriggerStyle,
+} from "@/components/ui/navigation-menu";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -21,12 +30,26 @@ export const Header = () => {
           <span className="text-xl font-bold text-foreground">CareFund</span>
         </div>
         
-        <div className="hidden md:flex items-center gap-6">
-          <nav className="flex items-center gap-6">
-            <a href="#" className="text-foreground hover:text-primary transition-colors">NGOs</a>
-            <a href="#" className="text-foreground hover:text-primary transition-colors">How it Works</a>
-            <a href="#" className="text-foreground hover:text-primary transition-colors">About</a>
-          </nav>
+        <div className="hidden md:flex items-center">
+          <NavigationMenu>
+            <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                  NGOs
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                  How it Works
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink className={navigationMenuTriggerStyle()} href="#">
+                  About
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
         </div>
 
         <div className="flex items-center gap-4">
