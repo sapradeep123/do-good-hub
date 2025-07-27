@@ -476,8 +476,10 @@ const AdminDashboard = () => {
   };
 
   const editPackage = (pkg: Package) => {
+    console.log("Edit package called with:", pkg);
     setEditingPackage(pkg);
     setIsEditPackageOpen(true);
+    toast.info(`Opening edit dialog for package: ${pkg.title}`);
   };
 
   const editUser = (user: User) => {
@@ -876,10 +878,15 @@ const AdminDashboard = () => {
                                           <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => editPackage(pkg)}
-                                            className="h-6 w-6 p-0"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              console.log("Edit button clicked for package:", pkg.title);
+                                              editPackage(pkg);
+                                            }}
+                                            className="h-8 w-8 p-0 hover:bg-gray-200"
                                           >
-                                            <Edit className="h-3 w-3" />
+                                            <Edit className="h-4 w-4" />
                                           </Button>
                                         </div>
                                       </div>
