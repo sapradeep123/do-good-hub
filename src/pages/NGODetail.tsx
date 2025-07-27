@@ -1,17 +1,65 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockNGOs } from "@/data/ngos";
+import { DonationModal } from "@/components/DonationModal";
+import { InvoiceModal } from "@/components/InvoiceModal";
+import { mockNGOs, DonationPackage } from "@/data/ngos";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, MapPin, Phone, Mail, Globe, Users, CheckCircle, Heart, Info, Contact } from "lucide-react";
 
 const NGODetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [selectedPackage, setSelectedPackage] = useState<DonationPackage | null>(null);
+  const [donationModalOpen, setDonationModalOpen] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [donationId, setDonationId] = useState<string | null>(null);
   
   const ngo = mockNGOs.find(n => n.id === id);
+
+  const handlePackageClick = (pkg: DonationPackage) => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "You need to be logged in to make a donation.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+    setSelectedPackage(pkg);
+    setDonationModalOpen(true);
+  };
+
+  const handleDonateClick = () => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "You need to be logged in to make a donation.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+    
+    if (ngo && ngo.packages.length > 0) {
+      setSelectedPackage(ngo.packages[0]);
+      setDonationModalOpen(true);
+    }
+  };
+
+  const handlePaymentSuccess = (newDonationId: string) => {
+    setDonationId(newDonationId);
+    setInvoiceModalOpen(true);
+  };
   
   if (!ngo) {
     return (
@@ -278,6 +326,7 @@ const NGODetail = () => {
                       <div 
                         key={pkg.id}
                         className="border rounded-lg p-4 hover:border-primary transition-colors cursor-pointer group"
+                        onClick={() => handlePackageClick(pkg)}
                       >
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-semibold group-hover:text-primary transition-colors">
@@ -290,7 +339,12 @@ const NGODetail = () => {
                       </div>
                     ))}
                     
-                    <Button className="w-full mt-6" variant="donate" size="lg">
+                    <Button 
+                      className="w-full mt-6" 
+                      variant="donate" 
+                      size="lg"
+                      onClick={handleDonateClick}
+                    >
                       Select Package & Donate
                     </Button>
                     
@@ -306,6 +360,23 @@ const NGODetail = () => {
           </div>
         </div>
       </section>
+
+      {/* Modals */}
+      <DonationModal
+        open={donationModalOpen}
+        onOpenChange={setDonationModalOpen}
+        package={selectedPackage}
+        ngoId={id || ""}
+        ngoName={ngo?.name || ""}
+        onPaymentSuccess={handlePaymentSuccess}
+      />
+
+      <InvoiceModal
+        open={invoiceModalOpen}
+        onOpenChange={setInvoiceModalOpen}
+        donationId={donationId}
+        ngoName={ngo?.name || ""}
+      />
     </div>
   );
 };
