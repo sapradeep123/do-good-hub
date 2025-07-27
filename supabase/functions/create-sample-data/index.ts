@@ -40,6 +40,13 @@ Deno.serve(async (req) => {
         role: 'ngo'
       },
       {
+        email: 'ngo3@example.com',
+        password: 'password123',
+        first_name: 'Priya',
+        last_name: 'Sharma',
+        role: 'ngo'
+      },
+      {
         email: 'vendor1@example.com',
         password: 'password123', 
         first_name: 'David',
@@ -125,7 +132,13 @@ Deno.serve(async (req) => {
         .eq('email', 'ngo2@example.com')
         .single()
 
-      if (ngoUser1.data && ngoUser2.data) {
+      const ngoUser3 = await supabaseAdmin
+        .from('profiles')
+        .select('user_id')
+        .eq('email', 'ngo3@example.com')
+        .single()
+
+      if (ngoUser1.data && ngoUser2.data && ngoUser3.data) {
         await supabaseAdmin
           .from('ngos')
           .insert([
@@ -158,6 +171,14 @@ Deno.serve(async (req) => {
               is_active: true
             }
           ])
+
+        // Update Akshaya Patra Foundation to assign it to ngo3@example.com
+        await supabaseAdmin
+          .from('ngos')
+          .update({
+            user_id: ngoUser3.data.user_id
+          })
+          .eq('name', 'Akshaya Patra Foundation')
       }
     }
 
