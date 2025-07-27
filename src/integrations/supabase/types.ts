@@ -14,7 +14,90 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      donations: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_number: string | null
+          ngo_id: string
+          package_amount: number
+          package_id: string
+          package_title: string
+          payment_method: string
+          payment_status: string
+          quantity: number
+          total_amount: number
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          ngo_id: string
+          package_amount: number
+          package_id: string
+          package_title: string
+          payment_method?: string
+          payment_status?: string
+          quantity?: number
+          total_amount: number
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          ngo_id?: string
+          package_amount?: number
+          package_id?: string
+          package_title?: string
+          payment_method?: string
+          payment_status?: string
+          quantity?: number
+          total_amount?: number
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
