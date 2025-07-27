@@ -7,6 +7,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { z } from "zod";
+
+// Security: Input validation schemas
+const emailSchema = z.string().email("Please enter a valid email address");
+const passwordSchema = z.string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
+    "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character");
+const tokenSchema = z.string().min(20, "Invalid token format");
 
 const PasswordReset = () => {
   const [email, setEmail] = useState("");
@@ -16,18 +25,35 @@ const PasswordReset = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep] = useState<"request" | "reset">("request");
   const [showPassword, setShowPassword] = useState(false);
+  const [attemptCount, setAttemptCount] = useState(0);
   const navigate = useNavigate();
 
   const generateResetToken = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Security: Rate limiting - max 3 attempts per session
+    if (attemptCount >= 3) {
+      toast.error("Too many attempts. Please refresh the page and try again.");
+      return;
+    }
+    
     setIsLoading(true);
+    setAttemptCount(prev => prev + 1);
 
     try {
-      // Check if user exists
+      // Security: Validate email input
+      const emailValidation = emailSchema.safeParse(email);
+      if (!emailValidation.success) {
+        toast.error(emailValidation.error.issues[0].message);
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if user exists (sanitized query)
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("user_id")
-        .eq("email", email)
+        .eq("email", email.trim().toLowerCase())
         .maybeSingle();
 
       if (profileError || !profile) {
@@ -36,17 +62,18 @@ const PasswordReset = () => {
         return;
       }
 
-      // Generate a simple token for development
-      const token = Math.random().toString(36).substring(2, 15) + 
-                   Math.random().toString(36).substring(2, 15);
+      // Security: Generate cryptographically secure token
+      const tokenArray = new Uint8Array(32);
+      crypto.getRandomValues(tokenArray);
+      const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
       
-      // Store the reset request
+      // Store the reset request with shorter expiry for security
       const { error } = await supabase
         .from("password_reset_requests")
         .insert({
-          email,
+          email: email.trim().toLowerCase(),
           token,
-          expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          expires_at: new Date(Date.now() + 900000).toISOString(), // 15 minutes for security
           used: false
         });
 
@@ -58,7 +85,7 @@ const PasswordReset = () => {
 
       setGeneratedToken(token);
       setStep("reset");
-      toast.success("Reset token generated! (Development mode)");
+      toast.success("Reset token generated! Valid for 15 minutes (Development mode)");
     } catch (error) {
       console.error("Error generating reset token:", error);
       toast.error("An error occurred. Please try again.");
@@ -72,24 +99,46 @@ const PasswordReset = () => {
     setIsLoading(true);
 
     try {
-      // Call the edge function to reset password
-      const response = await fetch(`https://cmjfaekfldzpsyuvctxs.supabase.co/functions/v1/reset-password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtamZhZWtmbGR6cHN5dXZjdHhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM2MzY0OTIsImV4cCI6MjA2OTIxMjQ5Mn0.6GOq4dqYWK70i_v0DDMi5sHZqJmb9Qlasd3vF0ZRyn4`,
-        },
-        body: JSON.stringify({
-          email,
-          token: resetToken,
+      // Security: Validate inputs
+      const emailValidation = emailSchema.safeParse(email);
+      const passwordValidation = passwordSchema.safeParse(newPassword);
+      const tokenValidation = tokenSchema.safeParse(resetToken);
+
+      if (!emailValidation.success) {
+        toast.error(emailValidation.error.issues[0].message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!passwordValidation.success) {
+        toast.error(passwordValidation.error.issues[0].message);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!tokenValidation.success) {
+        toast.error("Invalid token format");
+        setIsLoading(false);
+        return;
+      }
+
+      // Security: Use supabase client instead of hardcoded token
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: {
+          email: email.trim().toLowerCase(),
+          token: resetToken.trim(),
           newPassword
-        })
+        }
       });
 
-      const result = await response.json();
+      if (error) {
+        toast.error(error.message || 'Failed to reset password');
+        setIsLoading(false);
+        return;
+      }
 
-      if (!response.ok) {
-        toast.error(result.error || 'Failed to reset password');
+      if (data?.error) {
+        toast.error(data.error);
         setIsLoading(false);
         return;
       }
