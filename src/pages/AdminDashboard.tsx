@@ -842,6 +842,7 @@ const AdminDashboard = () => {
                       <TableHead>Email</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Category</TableHead>
+                      <TableHead>Packages</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Created</TableHead>
@@ -849,56 +850,98 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ngos.map((ngo) => (
-                      <TableRow key={ngo.id}>
-                        <TableCell className="font-medium">{ngo.name}</TableCell>
-                        <TableCell>{ngo.email}</TableCell>
-                        <TableCell>{ngo.location}</TableCell>
-                        <TableCell>{ngo.category}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleNGOStatus(ngo.id, ngo.is_active)}
-                          >
-                            <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
-                              {ngo.is_active ? 'Active' : 'Inactive'}
+                    {ngos.map((ngo) => {
+                      const ngoPackages = packages.filter(pkg => pkg.ngo_id === ngo.id);
+                      return (
+                        <TableRow key={ngo.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{ngo.name}</div>
+                              {ngoPackages.length > 0 && (
+                                <details className="mt-2">
+                                  <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
+                                    View {ngoPackages.length} package{ngoPackages.length > 1 ? 's' : ''}
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-gray-50 rounded">
+                                    {ngoPackages.map((pkg) => (
+                                      <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
+                                        <div className="text-sm">
+                                          <div className="font-medium">{pkg.title}</div>
+                                          <div className="text-gray-600">₹{Number(pkg.amount).toLocaleString()}</div>
+                                        </div>
+                                        <div className="flex items-center space-x-1">
+                                          <Badge variant={pkg.is_active ? 'default' : 'secondary'} className="text-xs">
+                                            {pkg.is_active ? 'Active' : 'Inactive'}
+                                          </Badge>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => editPackage(pkg)}
+                                            className="h-6 w-6 p-0"
+                                          >
+                                            <Edit className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{ngo.email}</TableCell>
+                          <TableCell>{ngo.location}</TableCell>
+                          <TableCell>{ngo.category}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {ngoPackages.length} package{ngoPackages.length !== 1 ? 's' : ''}
                             </Badge>
-                          </Button>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleNGOVerification(ngo.id, ngo.is_verified)}
-                          >
-                            <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
-                              {ngo.is_verified ? 'Verified' : 'Pending'}
-                            </Badge>
-                          </Button>
-                        </TableCell>
-                        <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
+                          </TableCell>
+                          <TableCell>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => editNGO(ngo)}
+                              onClick={() => toggleNGOStatus(ngo.id, ngo.is_active)}
                             >
-                              <Edit className="h-4 w-4" />
+                              <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
+                                {ngo.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
                             </Button>
+                          </TableCell>
+                          <TableCell>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => deleteNGO(ngo.id, ngo.name)}
-                              className="text-destructive hover:text-destructive"
+                              onClick={() => toggleNGOVerification(ngo.id, ngo.is_verified)}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
+                                {ngo.is_verified ? 'Verified' : 'Pending'}
+                              </Badge>
                             </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => editNGO(ngo)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => deleteNGO(ngo.id, ngo.name)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
