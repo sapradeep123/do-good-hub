@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2 } from "lucide-react";
+import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key } from "lucide-react";
 import { format } from "date-fns";
 
 interface User {
@@ -38,6 +38,7 @@ interface NGO {
   phone?: string;
   website_url?: string;
   registration_number?: string;
+  user_id?: string;
   is_verified: boolean;
   is_active: boolean;
   created_at: string;
@@ -51,6 +52,7 @@ interface Vendor {
   phone: string;
   address?: string;
   description?: string;
+  user_id?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -364,6 +366,32 @@ const AdminDashboard = () => {
   const editUser = (user: User) => {
     setEditingUser(user);
     setIsEditUserOpen(true);
+  };
+
+  const generatePasswordResetToken = async (email: string, userType: 'NGO' | 'Vendor') => {
+    try {
+      // Generate a simple token for development
+      const token = Math.random().toString(36).substring(2, 15) + 
+                   Math.random().toString(36).substring(2, 15);
+      
+      // Store the reset request
+      const { error } = await supabase
+        .from("password_reset_requests")
+        .insert({
+          email,
+          token,
+          expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          used: false
+        });
+
+      if (error) throw error;
+
+      toast.success(`Password reset token generated for ${userType}. Token: ${token}`);
+      console.log(`Password reset token for ${email}:`, token);
+    } catch (error) {
+      console.error("Error generating reset token:", error);
+      toast.error("Failed to generate reset token");
+    }
   };
 
   const deletePackage = async (id: string, title: string) => {
@@ -1371,12 +1399,90 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
     registration_number: ngo.registration_number || ''
   });
 
+  const [associatedUser, setAssociatedUser] = useState<User | null>(null);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>(ngo.user_id || '');
+
+  useEffect(() => {
+    fetchAssociatedUser();
+    fetchAvailableNGOUsers();
+  }, []);
+
+  const fetchAssociatedUser = async () => {
+    if (!ngo.user_id) return;
+    
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("user_id, email, first_name, last_name, phone")
+        .eq("user_id", ngo.user_id)
+        .single();
+
+      if (error || !profile) return;
+
+      const { data: role } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", ngo.user_id)
+        .single();
+
+      setAssociatedUser({
+        id: profile.user_id,
+        email: profile.email || '',
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || '',
+        created_at: '',
+        role: role?.role || 'ngo'
+      });
+    } catch (error) {
+      console.error("Error fetching associated user:", error);
+    }
+  };
+
+  const fetchAvailableNGOUsers = async () => {
+    try {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("user_id, email, first_name, last_name");
+
+      if (error) throw error;
+
+      const { data: ngoRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "ngo");
+
+      if (rolesError) throw rolesError;
+
+      const ngoUserIds = ngoRoles?.map(role => role.user_id) || [];
+      const users = profiles?.filter(profile => 
+        ngoUserIds.includes(profile.user_id)
+      ).map(profile => ({
+        id: profile.user_id,
+        email: profile.email || '',
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: '',
+        created_at: '',
+        role: 'ngo'
+      })) || [];
+
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error("Error fetching NGO users:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const { error } = await supabase
         .from("ngos")
-        .update(formData)
+        .update({
+          ...formData,
+          user_id: selectedUserId || null
+        })
         .eq("id", ngo.id);
 
       if (error) throw error;
@@ -1389,8 +1495,67 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
     }
   };
 
+  const handlePasswordReset = () => {
+    const email = associatedUser?.email || formData.email;
+    if (email) {
+      // Generate a simple token for development
+      const token = Math.random().toString(36).substring(2, 15) + 
+                   Math.random().toString(36).substring(2, 15);
+      
+      toast.success(`Password reset token generated for NGO. Token: ${token}`);
+      console.log(`Password reset token for ${email}:`, token);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Associated User Info */}
+      {associatedUser && (
+        <Card className="p-4 bg-blue-50 dark:bg-blue-950">
+          <h4 className="font-semibold mb-2 flex items-center">
+            <Users className="h-4 w-4 mr-2" />
+            Associated User Account
+          </h4>
+          <div className="space-y-2 text-sm">
+            <p><strong>Name:</strong> {associatedUser.first_name} {associatedUser.last_name}</p>
+            <p><strong>Email:</strong> {associatedUser.email}</p>
+            <p><strong>Role:</strong> {associatedUser.role}</p>
+            {associatedUser.phone && <p><strong>Phone:</strong> {associatedUser.phone}</p>}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePasswordReset}
+              className="mt-2"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              Generate Password Reset Token
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* User Assignment */}
+      <div>
+        <Label htmlFor="user_assignment">Assign NGO User Account</Label>
+        <Select 
+          value={selectedUserId} 
+          onValueChange={setSelectedUserId}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select user account" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No user assigned</SelectItem>
+            {availableUsers.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.first_name} {user.last_name} ({user.email})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">Name *</Label>
@@ -1511,12 +1676,90 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
     description: vendor.description || ''
   });
 
+  const [associatedUser, setAssociatedUser] = useState<User | null>(null);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>(vendor.user_id || '');
+
+  useEffect(() => {
+    fetchAssociatedUser();
+    fetchAvailableVendorUsers();
+  }, []);
+
+  const fetchAssociatedUser = async () => {
+    if (!vendor.user_id) return;
+    
+    try {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("user_id, email, first_name, last_name, phone")
+        .eq("user_id", vendor.user_id)
+        .single();
+
+      if (error || !profile) return;
+
+      const { data: role } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", vendor.user_id)
+        .single();
+
+      setAssociatedUser({
+        id: profile.user_id,
+        email: profile.email || '',
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || '',
+        created_at: '',
+        role: role?.role || 'vendor'
+      });
+    } catch (error) {
+      console.error("Error fetching associated user:", error);
+    }
+  };
+
+  const fetchAvailableVendorUsers = async () => {
+    try {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("user_id, email, first_name, last_name");
+
+      if (error) throw error;
+
+      const { data: vendorRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "vendor");
+
+      if (rolesError) throw rolesError;
+
+      const vendorUserIds = vendorRoles?.map(role => role.user_id) || [];
+      const users = profiles?.filter(profile => 
+        vendorUserIds.includes(profile.user_id)
+      ).map(profile => ({
+        id: profile.user_id,
+        email: profile.email || '',
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: '',
+        created_at: '',
+        role: 'vendor'
+      })) || [];
+
+      setAvailableUsers(users);
+    } catch (error) {
+      console.error("Error fetching vendor users:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const { error } = await supabase
         .from("vendors")
-        .update(formData)
+        .update({
+          ...formData,
+          user_id: selectedUserId || null
+        })
         .eq("id", vendor.id);
 
       if (error) throw error;
@@ -1529,8 +1772,67 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
     }
   };
 
+  const handlePasswordReset = () => {
+    const email = associatedUser?.email || formData.email;
+    if (email) {
+      // Generate a simple token for development
+      const token = Math.random().toString(36).substring(2, 15) + 
+                   Math.random().toString(36).substring(2, 15);
+      
+      toast.success(`Password reset token generated for Vendor. Token: ${token}`);
+      console.log(`Password reset token for ${email}:`, token);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Associated User Info */}
+      {associatedUser && (
+        <Card className="p-4 bg-green-50 dark:bg-green-950">
+          <h4 className="font-semibold mb-2 flex items-center">
+            <Users className="h-4 w-4 mr-2" />
+            Associated User Account
+          </h4>
+          <div className="space-y-2 text-sm">
+            <p><strong>Name:</strong> {associatedUser.first_name} {associatedUser.last_name}</p>
+            <p><strong>Email:</strong> {associatedUser.email}</p>
+            <p><strong>Role:</strong> {associatedUser.role}</p>
+            {associatedUser.phone && <p><strong>Phone:</strong> {associatedUser.phone}</p>}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handlePasswordReset}
+              className="mt-2"
+            >
+              <Key className="h-4 w-4 mr-2" />
+              Generate Password Reset Token
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* User Assignment */}
+      <div>
+        <Label htmlFor="user_assignment">Assign Vendor User Account</Label>
+        <Select 
+          value={selectedUserId} 
+          onValueChange={setSelectedUserId}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select user account" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">No user assigned</SelectItem>
+            {availableUsers.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.first_name} {user.last_name} ({user.email})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="company_name">Company Name *</Label>
