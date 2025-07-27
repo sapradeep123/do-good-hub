@@ -28,7 +28,7 @@ const PasswordReset = () => {
         .from("profiles")
         .select("user_id")
         .eq("email", email)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
         toast.error("User with this email not found");
@@ -93,7 +93,7 @@ const PasswordReset = () => {
         .from("profiles")
         .select("user_id")
         .eq("email", email)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profile) {
         toast.error("User not found");
