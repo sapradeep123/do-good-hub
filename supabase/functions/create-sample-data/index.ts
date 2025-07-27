@@ -227,6 +227,151 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Create sample packages for NGOs
+    const { data: ngosData } = await supabaseAdmin
+      .from('ngos')
+      .select('id, name')
+      
+    const { data: vendorsData } = await supabaseAdmin
+      .from('vendors')
+      .select('id, company_name')
+
+    if (ngosData && ngosData.length > 0 && vendorsData && vendorsData.length > 0) {
+      const samplePackages = []
+      
+      // Green Earth Foundation packages
+      const greenEarthNGO = ngosData.find(ngo => ngo.name === 'Green Earth Foundation')
+      if (greenEarthNGO) {
+        samplePackages.push({
+          ngo_id: greenEarthNGO.id,
+          vendor_id: vendorsData[0]?.id,
+          title: 'Solar Panel Installation Kit',
+          description: 'Complete solar panel installation kit for rural communities to provide clean energy access',
+          amount: 25000,
+          category: 'Environment',
+          items_included: ['Solar panels', 'Inverter', 'Batteries', 'Installation tools', 'Wiring'],
+          delivery_timeline: '4-6 weeks',
+          is_active: true
+        })
+        
+        samplePackages.push({
+          ngo_id: greenEarthNGO.id,
+          vendor_id: vendorsData[0]?.id,
+          title: 'Tree Plantation Drive Kit',
+          description: 'Everything needed for a community tree plantation drive including saplings and tools',
+          amount: 5000,
+          category: 'Environment',
+          items_included: ['Tree saplings', 'Planting tools', 'Fertilizers', 'Watering equipment'],
+          delivery_timeline: '2-3 weeks',
+          is_active: true
+        })
+      }
+
+      // Hope for Children packages
+      const hopeChildrenNGO = ngosData.find(ngo => ngo.name === 'Hope for Children')
+      if (hopeChildrenNGO) {
+        samplePackages.push({
+          ngo_id: hopeChildrenNGO.id,
+          vendor_id: vendorsData[1]?.id,
+          title: 'Educational Technology Kit',
+          description: 'Tablets and educational software to enhance digital learning in underserved schools',
+          amount: 15000,
+          category: 'Education',
+          items_included: ['Tablets', 'Educational apps', 'Protective cases', 'Charging station'],
+          delivery_timeline: '3-4 weeks',
+          is_active: true
+        })
+        
+        samplePackages.push({
+          ngo_id: hopeChildrenNGO.id,
+          vendor_id: vendorsData[1]?.id,
+          title: 'School Supplies Package',
+          description: 'Complete school supplies package for 50 students including books, stationery, and bags',
+          amount: 8000,
+          category: 'Education',
+          items_included: ['Notebooks', 'Pens and pencils', 'School bags', 'Textbooks', 'Art supplies'],
+          delivery_timeline: '1-2 weeks',
+          is_active: true
+        })
+      }
+
+      // Akshaya Patra Foundation packages
+      const akshayaPatraNGO = ngosData.find(ngo => ngo.name === 'Akshaya Patra Foundation')
+      if (akshayaPatraNGO) {
+        samplePackages.push({
+          ngo_id: akshayaPatraNGO.id,
+          vendor_id: vendorsData[0]?.id,
+          title: 'Mid-Day Meal Kit for 100 Children',
+          description: 'Nutritious meal ingredients to feed 100 children for one month',
+          amount: 12000,
+          category: 'Food Security',
+          items_included: ['Rice', 'Dal', 'Vegetables', 'Cooking oil', 'Spices', 'Nutritional supplements'],
+          delivery_timeline: '1 week',
+          is_active: true
+        })
+        
+        samplePackages.push({
+          ngo_id: akshayaPatraNGO.id,
+          vendor_id: vendorsData[0]?.id,
+          title: 'Kitchen Equipment Upgrade',
+          description: 'Industrial kitchen equipment to improve meal preparation efficiency',
+          amount: 50000,
+          category: 'Food Security',
+          items_included: ['Commercial stoves', 'Large cooking pots', 'Food storage containers', 'Serving utensils'],
+          delivery_timeline: '6-8 weeks',
+          is_active: true
+        })
+      }
+
+      if (samplePackages.length > 0) {
+        await supabaseAdmin
+          .from('packages')
+          .insert(samplePackages)
+      }
+    }
+
+    // Create sample donations
+    const { data: packagesData } = await supabaseAdmin
+      .from('packages')
+      .select('id, title, amount')
+      .limit(6)
+
+    const regularUser = await supabaseAdmin
+      .from('profiles')
+      .select('user_id')
+      .eq('email', 'user1@example.com')
+      .single()
+
+    if (packagesData && packagesData.length > 0 && regularUser.data) {
+      const sampleDonations = []
+      
+      // Create donations for different packages
+      packagesData.forEach((pkg, index) => {
+        const quantities = [1, 2, 1, 3, 1, 2]
+        const statuses = ['completed', 'completed', 'pending', 'completed', 'failed', 'completed']
+        const quantity = quantities[index] || 1
+        
+        sampleDonations.push({
+          user_id: regularUser.data.user_id,
+          package_id: pkg.id,
+          package_title: pkg.title,
+          package_amount: pkg.amount,
+          quantity: quantity,
+          total_amount: Number(pkg.amount) * quantity,
+          payment_status: statuses[index] || 'completed',
+          payment_method: 'card',
+          transaction_id: `TXN${Date.now()}${index}`,
+          invoice_number: `INV-${Date.now()}-${index}`
+        })
+      })
+
+      if (sampleDonations.length > 0) {
+        await supabaseAdmin
+          .from('donations')
+          .insert(sampleDonations)
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
