@@ -16,6 +16,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key } from "lucide-react";
 import { format } from "date-fns";
+import { z } from "zod";
+
+// Security: Input validation schemas
+const emailSchema = z.string().email("Please enter a valid email address");
+const passwordSchema = z.string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
+    "Password must contain uppercase, lowercase, number, and special character");
+const phoneSchema = z.string().optional();
+const urlSchema = z.string().url("Please enter a valid URL").optional().or(z.literal(""));
+const requiredStringSchema = z.string().min(1, "This field is required");
+const optionalStringSchema = z.string().optional();
+const amountSchema = z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number");
 
 interface User {
   id: string;
@@ -236,18 +249,44 @@ const AdminDashboard = () => {
     }
   };
 
+  // Security: Use secure role update function with audit logging
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
-      const { error } = await supabase
-        .from("user_roles")
-        .upsert({
-          user_id: userId,
-          role: newRole as 'admin' | 'ngo' | 'vendor' | 'user'
-        });
+      // Input validation
+      const roleSchema = z.enum(['admin', 'ngo', 'vendor', 'user']);
+      const uuidSchema = z.string().uuid();
+      
+      const roleValidation = roleSchema.safeParse(newRole);
+      const userIdValidation = uuidSchema.safeParse(userId);
+      
+      if (!roleValidation.success) {
+        toast.error("Invalid role selected");
+        return;
+      }
+      
+      if (!userIdValidation.success) {
+        toast.error("Invalid user ID");
+        return;
+      }
 
-      if (error) throw error;
+      // Security: Use secure function that prevents privilege escalation
+      const { data, error } = await supabase.rpc('update_user_role', {
+        target_user_id: userId,
+        new_role: newRole as any // Type assertion needed for RPC call
+      });
 
-      toast.success("User role updated successfully");
+      if (error) {
+        if (error.message.includes('cannot remove their own admin privileges')) {
+          toast.error("You cannot remove your own admin privileges");
+        } else if (error.message.includes('Only admins can modify user roles')) {
+          toast.error("Access denied: Only admins can modify user roles");
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast.success("User role updated successfully (audit logged)");
       await fetchUsers();
     } catch (error) {
       console.error("Error updating user role:", error);
