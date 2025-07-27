@@ -20,6 +20,9 @@ import { format } from "date-fns";
 interface User {
   id: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
   created_at: string;
   role?: string;
 }
@@ -55,9 +58,14 @@ interface Vendor {
 interface Package {
   id: string;
   title: string;
+  description?: string;
   amount: number;
   category: string;
+  items_included?: string[];
+  delivery_timeline?: string;
   is_active: boolean;
+  ngo_id: string;
+  vendor_id?: string;
   ngo_name?: string;
   vendor_name?: string;
   created_at: string;
@@ -79,10 +87,15 @@ const AdminDashboard = () => {
   const [isCreateNGOOpen, setIsCreateNGOOpen] = useState(false);
   const [isCreateVendorOpen, setIsCreateVendorOpen] = useState(false);
   const [isCreatePackageOpen, setIsCreatePackageOpen] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isEditNGOOpen, setIsEditNGOOpen] = useState(false);
   const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
+  const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [editingNGO, setEditingNGO] = useState<NGO | null>(null);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
+  const [editingPackage, setEditingPackage] = useState<Package | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -138,7 +151,7 @@ const AdminDashboard = () => {
     try {
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("user_id, email");
+        .select("user_id, email, first_name, last_name, phone, created_at");
 
       if (profilesError) throw profilesError;
 
@@ -151,7 +164,10 @@ const AdminDashboard = () => {
       const usersWithRoles = profiles?.map(profile => ({
         id: profile.user_id,
         email: profile.email || '',
-        created_at: '',
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        phone: profile.phone || '',
+        created_at: profile.created_at || '',
         role: roles?.find(r => r.user_id === profile.user_id)?.role || 'user'
       })) || [];
 
@@ -289,6 +305,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const toggleNGOVerification = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("ngos")
+        .update({ is_verified: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`NGO ${!currentStatus ? 'verified' : 'unverified'} successfully`);
+      await fetchNGOs();
+    } catch (error) {
+      console.error("Error updating NGO verification:", error);
+      toast.error("Failed to update NGO verification");
+    }
+  };
+
   const toggleNGOStatus = async (id: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
@@ -323,20 +356,79 @@ const AdminDashboard = () => {
     }
   };
 
-  const toggleNGOVerification = async (id: string, currentStatus: boolean) => {
+  const editPackage = (pkg: Package) => {
+    setEditingPackage(pkg);
+    setIsEditPackageOpen(true);
+  };
+
+  const editUser = (user: User) => {
+    setEditingUser(user);
+    setIsEditUserOpen(true);
+  };
+
+  const deletePackage = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete package "${title}"? This action cannot be undone.`)) {
+      return;
+    }
+    
     try {
       const { error } = await supabase
-        .from("ngos")
-        .update({ is_verified: !currentStatus })
+        .from("packages")
+        .delete()
         .eq("id", id);
 
       if (error) throw error;
 
-      toast.success(`NGO ${!currentStatus ? 'verified' : 'unverified'} successfully`);
-      await fetchNGOs();
+      toast.success("Package deleted successfully");
+      await fetchPackages();
     } catch (error) {
-      console.error("Error updating NGO verification:", error);
-      toast.error("Failed to update NGO verification");
+      console.error("Error deleting package:", error);
+      toast.error("Failed to delete package");
+    }
+  };
+
+  const deleteUser = async (id: string, email: string) => {
+    if (!confirm(`Are you sure you want to delete user "${email}"? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      // Delete user roles first
+      await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", id);
+
+      // Delete profile
+      const { error } = await supabase
+        .from("profiles")
+        .delete()
+        .eq("user_id", id);
+
+      if (error) throw error;
+
+      toast.success("User deleted successfully");
+      await fetchUsers();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error("Failed to delete user");
+    }
+  };
+
+  const togglePackageStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({ is_active: !currentStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast.success(`Package ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      await fetchPackages();
+    } catch (error) {
+      console.error("Error updating package status:", error);
+      toast.error("Failed to update package status");
     }
   };
 
@@ -431,28 +523,55 @@ const AdminDashboard = () => {
 
           <TabsContent value="users" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle>User Management</CardTitle>
-                <CardDescription>Manage user roles and permissions</CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>Manage user roles and permissions</CardDescription>
+                </div>
+                <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add User
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New User</DialogTitle>
+                      <DialogDescription>Add a new user to the platform</DialogDescription>
+                    </DialogHeader>
+                    <CreateUserForm 
+                      onSuccess={() => {
+                        setIsCreateUserOpen(false);
+                        fetchUsers();
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Role</TableHead>
+                      <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {users.map((user) => (
                       <TableRow key={user.id}>
-                        <TableCell>{user.email}</TableCell>
                         <TableCell>
-                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                            {user.role}
-                          </Badge>
+                          {user.first_name || user.last_name 
+                            ? `${user.first_name} ${user.last_name}`.trim()
+                            : 'N/A'
+                          }
                         </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.phone || 'N/A'}</TableCell>
                         <TableCell>
                           <Select
                             value={user.role}
@@ -469,12 +588,58 @@ const AdminDashboard = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
+                        <TableCell>
+                          {user.created_at ? format(new Date(user.created_at), 'MMM dd, yyyy') : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => editUser(user)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteUser(user.id, user.email)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Edit User Dialog */}
+            <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Edit User</DialogTitle>
+                  <DialogDescription>Update user information</DialogDescription>
+                </DialogHeader>
+                {editingUser && (
+                  <EditUserForm 
+                    user={editingUser}
+                    onSuccess={() => {
+                      setIsEditUserOpen(false);
+                      setEditingUser(null);
+                      fetchUsers();
+                    }}
+                    onCancel={() => {
+                      setIsEditUserOpen(false);
+                      setEditingUser(null);
+                    }}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="ngos" className="space-y-4">
@@ -750,6 +915,7 @@ const AdminDashboard = () => {
                       <TableHead>Category</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -761,17 +927,68 @@ const AdminDashboard = () => {
                         <TableCell>₹{Number(pkg.amount).toLocaleString()}</TableCell>
                         <TableCell>{pkg.category}</TableCell>
                         <TableCell>
-                          <Badge variant={pkg.is_active ? 'default' : 'destructive'}>
-                            {pkg.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => togglePackageStatus(pkg.id, pkg.is_active)}
+                          >
+                            <Badge variant={pkg.is_active ? 'default' : 'destructive'}>
+                              {pkg.is_active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </Button>
                         </TableCell>
                         <TableCell>{format(new Date(pkg.created_at), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => editPackage(pkg)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deletePackage(pkg.id, pkg.title)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Edit Package Dialog */}
+            <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Package</DialogTitle>
+                  <DialogDescription>Update package information</DialogDescription>
+                </DialogHeader>
+                {editingPackage && (
+                  <EditPackageForm 
+                    package={editingPackage}
+                    ngos={ngos}
+                    vendors={vendors}
+                    onSuccess={() => {
+                      setIsEditPackageOpen(false);
+                      setEditingPackage(null);
+                      fetchPackages();
+                    }}
+                    onCancel={() => {
+                      setIsEditPackageOpen(false);
+                      setEditingPackage(null);
+                    }}
+                  />
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </div>
@@ -1374,6 +1591,404 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
 
       <div className="flex space-x-2">
         <Button type="submit" className="flex-1">Update Vendor</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </form>
+  );
+};
+
+// Create User Form Component
+const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    phone: '',
+    role: 'user'
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: formData.email,
+        password: formData.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: formData.first_name,
+          last_name: formData.last_name
+        }
+      });
+
+      if (authError) throw authError;
+
+      // Update profile with phone
+      if (authData.user) {
+        await supabase
+          .from("profiles")
+          .update({ phone: formData.phone })
+          .eq("user_id", authData.user.id);
+
+        // Set user role
+        await supabase
+          .from("user_roles")
+          .insert({
+            user_id: authData.user.id,
+            role: formData.role as 'admin' | 'ngo' | 'vendor' | 'user'
+          });
+      }
+
+      toast.success("User created successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error creating user:", error);
+      toast.error("Failed to create user");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="first_name">First Name</Label>
+          <Input
+            id="first_name"
+            value={formData.first_name}
+            onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="last_name">Last Name</Label>
+          <Input
+            id="last_name"
+            value={formData.last_name}
+            onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="email">Email *</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData({...formData, email: e.target.value})}
+          required
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="password">Password *</Label>
+        <Input
+          id="password"
+          type="password"
+          value={formData.password}
+          onChange={(e) => setFormData({...formData, password: e.target.value})}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="role">Role</Label>
+          <Select 
+            value={formData.role} 
+            onValueChange={(value) => setFormData({...formData, role: value})}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="ngo">NGO</SelectItem>
+              <SelectItem value="vendor">Vendor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <Button type="submit" className="w-full">Create User</Button>
+    </form>
+  );
+};
+
+// Edit User Form Component
+const EditUserForm = ({ user, onSuccess, onCancel }: { 
+  user: User; 
+  onSuccess: () => void; 
+  onCancel: () => void; 
+}) => {
+  const [formData, setFormData] = useState({
+    email: user.email || '',
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    phone: user.phone || '',
+    role: user.role || 'user'
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Update profile
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          phone: formData.phone
+        })
+        .eq("user_id", user.id);
+
+      if (profileError) throw profileError;
+
+      // Update role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .upsert({
+          user_id: user.id,
+          role: formData.role as 'admin' | 'ngo' | 'vendor' | 'user'
+        });
+
+      if (roleError) throw roleError;
+
+      toast.success("User updated successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error updating user:", error);
+      toast.error("Failed to update user");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="first_name">First Name</Label>
+          <Input
+            id="first_name"
+            value={formData.first_name}
+            onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="last_name">Last Name</Label>
+          <Input
+            id="last_name"
+            value={formData.last_name}
+            onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="email">Email *</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email}
+          onChange={(e) => setFormData({...formData, email: e.target.value})}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            value={formData.phone}
+            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="role">Role</Label>
+          <Select 
+            value={formData.role} 
+            onValueChange={(value) => setFormData({...formData, role: value})}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="ngo">NGO</SelectItem>
+              <SelectItem value="vendor">Vendor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex space-x-2">
+        <Button type="submit" className="flex-1">Update User</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </form>
+  );
+};
+
+// Edit Package Form Component
+const EditPackageForm = ({ 
+  package: pkg,
+  ngos, 
+  vendors, 
+  onSuccess,
+  onCancel
+}: { 
+  package: Package;
+  ngos: NGO[]; 
+  vendors: Vendor[]; 
+  onSuccess: () => void; 
+  onCancel: () => void;
+}) => {
+  const [formData, setFormData] = useState({
+    ngo_id: pkg.ngo_id || '',
+    vendor_id: pkg.vendor_id || '',
+    title: pkg.title || '',
+    description: pkg.description || '',
+    amount: pkg.amount.toString(),
+    category: pkg.category || '',
+    delivery_timeline: pkg.delivery_timeline || ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({
+          ...formData,
+          amount: parseFloat(formData.amount),
+          vendor_id: formData.vendor_id || null
+        })
+        .eq("id", pkg.id);
+
+      if (error) throw error;
+
+      toast.success("Package updated successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error updating package:", error);
+      toast.error("Failed to update package");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="title">Title *</Label>
+        <Input
+          id="title"
+          value={formData.title}
+          onChange={(e) => setFormData({...formData, title: e.target.value})}
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="ngo_id">NGO *</Label>
+          <Select 
+            value={formData.ngo_id} 
+            onValueChange={(value) => setFormData({...formData, ngo_id: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select NGO" />
+            </SelectTrigger>
+            <SelectContent>
+              {ngos.map((ngo) => (
+                <SelectItem key={ngo.id} value={ngo.id}>
+                  {ngo.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="vendor_id">Vendor (Optional)</Label>
+          <Select 
+            value={formData.vendor_id} 
+            onValueChange={(value) => setFormData({...formData, vendor_id: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Vendor" />
+            </SelectTrigger>
+            <SelectContent>
+              {vendors.map((vendor) => (
+                <SelectItem key={vendor.id} value={vendor.id}>
+                  {vendor.company_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="amount">Amount *</Label>
+          <Input
+            id="amount"
+            type="number"
+            value={formData.amount}
+            onChange={(e) => setFormData({...formData, amount: e.target.value})}
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select 
+            value={formData.category} 
+            onValueChange={(value) => setFormData({...formData, category: value})}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Food">Food</SelectItem>
+              <SelectItem value="Education">Education</SelectItem>
+              <SelectItem value="Healthcare">Healthcare</SelectItem>
+              <SelectItem value="Shelter">Shelter</SelectItem>
+              <SelectItem value="Emergency">Emergency</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
+        <Input
+          id="delivery_timeline"
+          value={formData.delivery_timeline}
+          onChange={(e) => setFormData({...formData, delivery_timeline: e.target.value})}
+          placeholder="e.g., 7-10 days"
+        />
+      </div>
+
+      <div className="flex space-x-2">
+        <Button type="submit" className="flex-1">Update Package</Button>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
     </form>
