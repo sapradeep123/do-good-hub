@@ -317,6 +317,80 @@ export type Database = {
         }
         Relationships: []
       }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          donation_id: string
+          expected_delivery_date: string | null
+          id: string
+          issued_date: string
+          ngo_id: string
+          package_id: string
+          po_number: string
+          status: string
+          total_amount: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          donation_id: string
+          expected_delivery_date?: string | null
+          id?: string
+          issued_date?: string
+          ngo_id: string
+          package_id: string
+          po_number: string
+          status?: string
+          total_amount: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          donation_id?: string
+          expected_delivery_date?: string | null
+          id?: string
+          issued_date?: string
+          ngo_id?: string
+          package_id?: string
+          po_number?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_donation_id_fkey"
+            columns: ["donation_id"]
+            isOneToOne: false
+            referencedRelation: "donations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_ngo_id_fkey"
+            columns: ["ngo_id"]
+            isOneToOne: false
+            referencedRelation: "ngos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -341,6 +415,78 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_invoices: {
+        Row: {
+          created_at: string
+          delivery_date: string | null
+          gst_number: string | null
+          id: string
+          invoice_amount: number
+          invoice_date: string
+          invoice_number: string
+          invoice_type: string
+          items: Json | null
+          notes: string | null
+          purchase_order_id: string
+          status: string
+          tax_amount: number | null
+          total_amount: number
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_date?: string | null
+          gst_number?: string | null
+          id?: string
+          invoice_amount: number
+          invoice_date: string
+          invoice_number: string
+          invoice_type?: string
+          items?: Json | null
+          notes?: string | null
+          purchase_order_id: string
+          status?: string
+          tax_amount?: number | null
+          total_amount: number
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_date?: string | null
+          gst_number?: string | null
+          id?: string
+          invoice_amount?: number
+          invoice_date?: string
+          invoice_number?: string
+          invoice_type?: string
+          items?: Json | null
+          notes?: string | null
+          purchase_order_id?: string
+          status?: string
+          tax_amount?: number | null
+          total_amount?: number
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_invoices_purchase_order_id_fkey"
+            columns: ["purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           address: string | null
@@ -351,6 +497,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean | null
+          ngo_id: string | null
           phone: string | null
           services: string[] | null
           updated_at: string
@@ -365,6 +512,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
+          ngo_id?: string | null
           phone?: string | null
           services?: string[] | null
           updated_at?: string
@@ -379,12 +527,21 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
+          ngo_id?: string | null
           phone?: string | null
           services?: string[] | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vendors_ngo_id_fkey"
+            columns: ["ngo_id"]
+            isOneToOne: false
+            referencedRelation: "ngos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

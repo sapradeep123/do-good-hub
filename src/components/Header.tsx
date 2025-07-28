@@ -101,6 +101,10 @@ export const Header = () => {
                 <Button variant="outline" size="sm" onClick={() => navigate("/ngo-dashboard")}>
                   Dashboard
                 </Button>
+              ) : userRole === "vendor" ? (
+                <Button variant="outline" size="sm" onClick={() => navigate("/vendor-dashboard")}>
+                  Dashboard
+                </Button>
               ) : userRole === "admin" ? (
                 <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
                   Admin

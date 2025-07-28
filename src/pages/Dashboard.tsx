@@ -66,6 +66,20 @@ const Dashboard = () => {
         return;
       }
 
+      // Check if user has vendor role
+      const { data: vendorRoleData, error: vendorRoleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .eq("role", "vendor")
+        .single();
+
+      if (vendorRoleData && !vendorRoleError) {
+        // User is a vendor, redirect to vendor dashboard
+        navigate("/vendor-dashboard");
+        return;
+      }
+
       // Check if user has admin role
       const { data: adminRoleData, error: adminRoleError } = await supabase
         .from("user_roles")

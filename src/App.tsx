@@ -9,6 +9,7 @@ import NGODetail from "./pages/NGODetail";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NGODashboard from "./pages/NGODashboard";
+import VendorDashboard from "./pages/VendorDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import PasswordReset from "./pages/PasswordReset";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/ngo-dashboard" element={<NGODashboard />} />
+            <Route path="/vendor-dashboard" element={<VendorDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="/how-it-works" element={<Index />} />

@@ -70,6 +70,8 @@ interface Vendor {
   address?: string;
   description?: string;
   user_id?: string;
+  ngo_id?: string;
+  ngo_name?: string;
   is_active: boolean;
   created_at: string;
 }
@@ -218,11 +220,18 @@ const AdminDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("vendors")
-        .select("*")
+        .select(`
+          *,
+          ngos!vendors_ngo_id_fkey(name)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setVendors(data || []);
+      const vendorsWithNGONames = data?.map(vendor => ({
+        ...vendor,
+        ngo_name: vendor.ngos?.name || null
+      })) || [];
+      setVendors(vendorsWithNGONames);
     } catch (error) {
       console.error("Error fetching vendors:", error);
       toast.error("Failed to fetch vendors");
@@ -1085,6 +1094,7 @@ const AdminDashboard = () => {
                       <DialogDescription>Add a new vendor to the platform</DialogDescription>
                     </DialogHeader>
                     <CreateVendorForm 
+                      ngos={ngos}
                       onSuccess={() => {
                         setIsCreateVendorOpen(false);
                         fetchVendors();
@@ -1098,6 +1108,7 @@ const AdminDashboard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Company</TableHead>
+                      <TableHead>Associated NGO</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Status</TableHead>
@@ -1109,6 +1120,13 @@ const AdminDashboard = () => {
                     {vendors.map((vendor) => (
                       <TableRow key={vendor.id}>
                         <TableCell className="font-medium">{vendor.company_name}</TableCell>
+                        <TableCell>
+                          {vendor.ngo_name ? (
+                            <Badge variant="outline">{vendor.ngo_name}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">Not assigned</span>
+                          )}
+                        </TableCell>
                         <TableCell>{vendor.email}</TableCell>
                         <TableCell>{vendor.phone}</TableCell>
                         <TableCell>
@@ -1159,6 +1177,7 @@ const AdminDashboard = () => {
                 {editingVendor && (
                   <EditVendorForm 
                     vendor={editingVendor}
+                    ngos={ngos}
                     onSuccess={() => {
                       setIsEditVendorOpen(false);
                       setEditingVendor(null);
@@ -1496,14 +1515,15 @@ const CreateNGOForm = ({ onSuccess }: { onSuccess: () => void }) => {
 };
 
 // Create Vendor Form Component
-const CreateVendorForm = ({ onSuccess }: { onSuccess: () => void }) => {
+const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => void }) => {
   const [formData, setFormData] = useState({
     company_name: '',
     contact_person: '',
     email: '',
     phone: '',
     address: '',
-    description: ''
+    description: '',
+    ngo_id: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1572,6 +1592,22 @@ const CreateVendorForm = ({ onSuccess }: { onSuccess: () => void }) => {
           value={formData.address}
           onChange={(e) => setFormData({...formData, address: e.target.value})}
         />
+      </div>
+
+      <div>
+        <Label htmlFor="ngo_id">Associated NGO *</Label>
+        <Select onValueChange={(value) => setFormData({...formData, ngo_id: value})} required>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an NGO" />
+          </SelectTrigger>
+          <SelectContent>
+            {ngos.filter(ngo => ngo.is_active).map((ngo) => (
+              <SelectItem key={ngo.id} value={ngo.id}>
+                {ngo.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
@@ -2033,8 +2069,9 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
 };
 
 // Edit Vendor Form Component
-const EditVendorForm = ({ vendor, onSuccess, onCancel }: { 
+const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: { 
   vendor: Vendor; 
+  ngos: NGO[];
   onSuccess: () => void; 
   onCancel: () => void; 
 }) => {
@@ -2044,7 +2081,8 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
     email: vendor.email || '',
     phone: vendor.phone || '',
     address: vendor.address || '',
-    description: vendor.description || ''
+    description: vendor.description || '',
+    ngo_id: vendor.ngo_id || ''
   });
 
   const [associatedUser, setAssociatedUser] = useState<User | null>(null);
@@ -2267,6 +2305,22 @@ const EditVendorForm = ({ vendor, onSuccess, onCancel }: {
           value={formData.address}
           onChange={(e) => setFormData({...formData, address: e.target.value})}
         />
+      </div>
+
+      <div>
+        <Label htmlFor="ngo_id">Associated NGO *</Label>
+        <Select value={formData.ngo_id} onValueChange={(value) => setFormData({...formData, ngo_id: value})} required>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an NGO" />
+          </SelectTrigger>
+          <SelectContent>
+            {ngos.filter(ngo => ngo.is_active).map((ngo) => (
+              <SelectItem key={ngo.id} value={ngo.id}>
+                {ngo.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
