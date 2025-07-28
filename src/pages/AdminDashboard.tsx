@@ -2704,15 +2704,18 @@ const AssignPackageForm = ({
 
   if (!ngo) return null;
 
-  // Get packages that are not assigned to any NGO or are available for assignment
-  const availablePackages = packages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
+  // Ensure packages is always an array to prevent iteration errors
+  const safePackages = Array.isArray(packages) ? packages : [];
   
-  // Filter packages based on search
-  const filteredPackages = availablePackages.filter(pkg => 
-    pkg.title.toLowerCase().includes(searchValue.toLowerCase()) ||
+  // Get packages that are not assigned to any NGO or are available for assignment
+  const availablePackages = safePackages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
+  
+  // Filter packages based on search - ensure filteredPackages is always an array
+  const filteredPackages = Array.isArray(availablePackages) ? availablePackages.filter(pkg => 
+    pkg.title?.toLowerCase().includes(searchValue.toLowerCase()) ||
     pkg.category?.toLowerCase().includes(searchValue.toLowerCase()) ||
-    pkg.amount.toString().includes(searchValue)
-  );
+    pkg.amount?.toString().includes(searchValue)
+  ) : [];
 
   const selectedPackage = availablePackages.find(pkg => pkg.id === selectedPackageId);
 
@@ -2739,6 +2742,20 @@ const AssignPackageForm = ({
       toast.error("Failed to assign package");
     }
   };
+
+  // Show loading state if packages are not yet loaded
+  if (!Array.isArray(packages)) {
+    return (
+      <div className="space-y-4">
+        <div>Loading packages...</div>
+        <div className="flex justify-end space-x-2">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -2770,33 +2787,39 @@ const AssignPackageForm = ({
               <CommandEmpty>No packages found.</CommandEmpty>
               <CommandGroup>
                 <ScrollArea className="h-[200px]">
-                  {filteredPackages.map((pkg) => (
-                    <CommandItem
-                      key={pkg.id}
-                      value={pkg.id}
-                      onSelect={() => {
-                        setSelectedPackageId(pkg.id);
-                        setOpen(false);
-                        setSearchValue('');
-                      }}
-                      className="flex flex-col items-start p-3 cursor-pointer hover:bg-accent"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="font-medium">{pkg.title}</div>
-                        <div className="text-sm font-semibold text-primary">
-                          ₹{Number(pkg.amount).toLocaleString()}
+                  {filteredPackages.length > 0 ? (
+                    filteredPackages.map((pkg) => (
+                      <CommandItem
+                        key={pkg.id}
+                        value={pkg.id}
+                        onSelect={() => {
+                          setSelectedPackageId(pkg.id);
+                          setOpen(false);
+                          setSearchValue('');
+                        }}
+                        className="flex flex-col items-start p-3 cursor-pointer hover:bg-accent"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <div className="font-medium">{pkg.title}</div>
+                          <div className="text-sm font-semibold text-primary">
+                            ₹{Number(pkg.amount).toLocaleString()}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Category: {pkg.category || 'N/A'}
-                      </div>
-                      {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
-                        <div className="text-xs text-orange-500 mt-1">
-                          Currently assigned to another NGO
+                        <div className="text-xs text-muted-foreground">
+                          Category: {pkg.category || 'N/A'}
                         </div>
-                      )}
-                    </CommandItem>
-                  ))}
+                        {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
+                          <div className="text-xs text-orange-500 mt-1">
+                            Currently assigned to another NGO
+                          </div>
+                        )}
+                      </CommandItem>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      No packages available
+                    </div>
+                  )}
                 </ScrollArea>
               </CommandGroup>
             </Command>
