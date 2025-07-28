@@ -2699,7 +2699,6 @@ const AssignPackageForm = ({
   onCancel: () => void; 
 }) => {
   const [selectedPackageId, setSelectedPackageId] = useState('');
-  const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState('');
 
   if (!ngo) return null;
@@ -2710,7 +2709,7 @@ const AssignPackageForm = ({
   // Get packages that are not assigned to any NGO or are available for assignment
   const availablePackages = safePackages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
   
-  // Filter packages based on search - ensure filteredPackages is always an array
+  // Filter packages based on search
   const filteredPackages = Array.isArray(availablePackages) ? availablePackages.filter(pkg => 
     pkg.title?.toLowerCase().includes(searchValue.toLowerCase()) ||
     pkg.category?.toLowerCase().includes(searchValue.toLowerCase()) ||
@@ -2761,70 +2760,66 @@ const AssignPackageForm = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="package">Select Package</Label>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="w-full justify-between"
-            >
-              {selectedPackage 
-                ? `${selectedPackage.title} - ₹${Number(selectedPackage.amount).toLocaleString()}`
-                : "Choose a package to assign..."
-              }
-              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
-            <Command>
-              <CommandInput 
-                placeholder="Search packages..." 
-                value={searchValue}
-                onValueChange={setSearchValue}
-                className="h-9"
-              />
-              <CommandEmpty>No packages found.</CommandEmpty>
-              <CommandGroup>
-                <ScrollArea className="h-[200px]">
-                  {filteredPackages.length > 0 ? (
-                    filteredPackages.map((pkg) => (
-                      <CommandItem
-                        key={pkg.id}
-                        value={pkg.id}
-                        onSelect={() => {
-                          setSelectedPackageId(pkg.id);
-                          setOpen(false);
-                          setSearchValue('');
-                        }}
-                        className="flex flex-col items-start p-3 cursor-pointer hover:bg-accent"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <div className="font-medium">{pkg.title}</div>
-                          <div className="text-sm font-semibold text-primary">
-                            ₹{Number(pkg.amount).toLocaleString()}
-                          </div>
+        
+        {/* Search Input */}
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search packages..."
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
+        {/* Package Selection */}
+        <div className="border rounded-md bg-background">
+          <ScrollArea className="h-[200px]">
+            <div className="p-2">
+              {filteredPackages.length > 0 ? (
+                <div className="space-y-1">
+                  {filteredPackages.map((pkg) => (
+                    <div
+                      key={pkg.id}
+                      onClick={() => setSelectedPackageId(pkg.id)}
+                      className={`p-3 rounded-md cursor-pointer transition-colors ${
+                        selectedPackageId === pkg.id 
+                          ? 'bg-primary text-primary-foreground' 
+                          : 'hover:bg-accent hover:text-accent-foreground'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{pkg.title}</div>
+                        <div className="text-sm font-semibold">
+                          ₹{Number(pkg.amount).toLocaleString()}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          Category: {pkg.category || 'N/A'}
+                      </div>
+                      <div className="text-xs opacity-70 mt-1">
+                        Category: {pkg.category || 'N/A'}
+                      </div>
+                      {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
+                        <div className="text-xs text-orange-400 mt-1">
+                          Currently assigned to another NGO
                         </div>
-                        {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
-                          <div className="text-xs text-orange-500 mt-1">
-                            Currently assigned to another NGO
-                          </div>
-                        )}
-                      </CommandItem>
-                    ))
-                  ) : (
-                    <div className="p-3 text-sm text-muted-foreground">
-                      No packages available
+                      )}
                     </div>
-                  )}
-                </ScrollArea>
-              </CommandGroup>
-            </Command>
-          </PopoverContent>
-        </Popover>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  {searchValue ? 'No packages found matching your search.' : 'No packages available for assignment.'}
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+
+        {selectedPackage && (
+          <div className="mt-2 p-2 bg-muted rounded-md text-sm">
+            <strong>Selected:</strong> {selectedPackage.title} - ₹{Number(selectedPackage.amount).toLocaleString()}
+          </div>
+        )}
+
         {availablePackages.length === 0 && (
           <p className="text-sm text-muted-foreground mt-2">
             No packages available for assignment. All packages are already assigned to this NGO.
