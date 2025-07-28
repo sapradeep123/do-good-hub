@@ -487,6 +487,45 @@ export type Database = {
           },
         ]
       }
+      vendor_ngo_associations: {
+        Row: {
+          created_at: string
+          id: string
+          ngo_id: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ngo_id: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ngo_id?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_ngo_associations_ngo_id_fkey"
+            columns: ["ngo_id"]
+            isOneToOne: false
+            referencedRelation: "ngos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_ngo_associations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           address: string | null
@@ -497,7 +536,6 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean | null
-          ngo_id: string | null
           phone: string | null
           services: string[] | null
           updated_at: string
@@ -512,7 +550,6 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
-          ngo_id?: string | null
           phone?: string | null
           services?: string[] | null
           updated_at?: string
@@ -527,21 +564,12 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
-          ngo_id?: string | null
           phone?: string | null
           services?: string[] | null
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "vendors_ngo_id_fkey"
-            columns: ["ngo_id"]
-            isOneToOne: false
-            referencedRelation: "ngos"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {

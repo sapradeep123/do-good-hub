@@ -103,6 +103,7 @@ const AdminDashboard = () => {
   const [ngos, setNGOs] = useState<NGO[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
+  const [vendorNgoAssociations, setVendorNgoAssociations] = useState([]);
   
   // Modal states
   const [isCreateNGOOpen, setIsCreateNGOOpen] = useState(false);
@@ -166,7 +167,8 @@ const AdminDashboard = () => {
       fetchUsers(),
       fetchNGOs(),
       fetchVendors(),
-      fetchPackages()
+      fetchPackages(),
+      fetchVendorNgoAssociations()
     ]);
   };
 
@@ -220,21 +222,33 @@ const AdminDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("vendors")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+      toast.error("Failed to fetch vendors");
+    }
+  };
+
+  const fetchVendorNgoAssociations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vendor_ngo_associations")
         .select(`
           *,
-          ngos!vendors_ngo_id_fkey(name)
+          vendors(company_name),
+          ngos(name)
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      const vendorsWithNGONames = data?.map(vendor => ({
-        ...vendor,
-        ngo_name: vendor.ngos?.name || null
-      })) || [];
-      setVendors(vendorsWithNGONames);
+      setVendorNgoAssociations(data || []);
     } catch (error) {
-      console.error("Error fetching vendors:", error);
-      toast.error("Failed to fetch vendors");
+      console.error("Error fetching vendor-NGO associations:", error);
+      toast.error("Failed to fetch vendor-NGO associations");
     }
   };
 
@@ -919,20 +933,22 @@ const AdminDashboard = () => {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Packages</TableHead>
-                      <TableHead>Status</TableHead>
+                       <TableHead>Location</TableHead>
+                       <TableHead>Category</TableHead>
+                       <TableHead>Packages</TableHead>
+                       <TableHead>Vendors</TableHead>
+                       <TableHead>Status</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ngos.map((ngo) => {
-                      const ngoPackages = packages.filter(pkg => pkg.ngo_id === ngo.id);
-                      return (
-                        <TableRow key={ngo.id}>
+                     {ngos.map((ngo) => {
+                       const ngoPackages = packages.filter(pkg => pkg.ngo_id === ngo.id);
+                       const ngoVendors = vendorNgoAssociations.filter(assoc => assoc.ngo_id === ngo.id);
+                       return (
+                         <TableRow key={ngo.id}>
                           <TableCell>
                             <div>
                               <div className="font-medium">{ngo.name}</div>
@@ -987,11 +1003,24 @@ const AdminDashboard = () => {
                           <TableCell>{ngo.email}</TableCell>
                           <TableCell>{ngo.location}</TableCell>
                           <TableCell>{ngo.category}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {ngoPackages.length} package{ngoPackages.length !== 1 ? 's' : ''}
-                            </Badge>
-                          </TableCell>
+                           <TableCell>
+                             <Badge variant="outline">
+                               {ngoPackages.length} package{ngoPackages.length !== 1 ? 's' : ''}
+                             </Badge>
+                           </TableCell>
+                           <TableCell>
+                             {ngoVendors.length > 0 ? (
+                               <div className="flex flex-wrap gap-1">
+                                 {ngoVendors.map((assoc, index) => (
+                                   <Badge key={index} variant="secondary" className="text-xs">
+                                     {assoc.vendors?.company_name || 'Unknown Vendor'}
+                                   </Badge>
+                                 ))}
+                               </div>
+                             ) : (
+                               <span className="text-muted-foreground text-sm">No vendors</span>
+                             )}
+                           </TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -1093,13 +1122,14 @@ const AdminDashboard = () => {
                       <DialogTitle>Create New Vendor</DialogTitle>
                       <DialogDescription>Add a new vendor to the platform</DialogDescription>
                     </DialogHeader>
-                    <CreateVendorForm 
-                      ngos={ngos}
-                      onSuccess={() => {
-                        setIsCreateVendorOpen(false);
-                        fetchVendors();
-                      }}
-                    />
+                     <CreateVendorForm 
+                       ngos={ngos}
+                       onSuccess={() => {
+                         setIsCreateVendorOpen(false);
+                         fetchVendors();
+                         fetchVendorNgoAssociations();
+                       }}
+                     />
                   </DialogContent>
                 </Dialog>
               </CardHeader>
@@ -1117,16 +1147,27 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vendors.map((vendor) => (
-                      <TableRow key={vendor.id}>
-                        <TableCell className="font-medium">{vendor.company_name}</TableCell>
-                        <TableCell>
-                          {vendor.ngo_name ? (
-                            <Badge variant="outline">{vendor.ngo_name}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground">Not assigned</span>
-                          )}
-                        </TableCell>
+                     {vendors.map((vendor) => {
+                       const vendorAssociations = vendorNgoAssociations.filter(
+                         assoc => assoc.vendor_id === vendor.id
+                       );
+                       
+                       return (
+                         <TableRow key={vendor.id}>
+                           <TableCell className="font-medium">{vendor.company_name}</TableCell>
+                           <TableCell>
+                             {vendorAssociations.length > 0 ? (
+                               <div className="flex flex-wrap gap-1">
+                                 {vendorAssociations.map((assoc, index) => (
+                                   <Badge key={index} variant="outline" className="text-xs">
+                                     {assoc.ngos?.name || 'Unknown NGO'}
+                                   </Badge>
+                                 ))}
+                               </div>
+                             ) : (
+                               <span className="text-muted-foreground">No NGOs assigned</span>
+                             )}
+                           </TableCell>
                         <TableCell>{vendor.email}</TableCell>
                         <TableCell>{vendor.phone}</TableCell>
                         <TableCell>
@@ -1159,10 +1200,11 @@ const AdminDashboard = () => {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
+                         </TableCell>
+                       </TableRow>
+                       );
+                     })}
+                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
@@ -1175,14 +1217,15 @@ const AdminDashboard = () => {
                   <DialogDescription>Update vendor information</DialogDescription>
                 </DialogHeader>
                 {editingVendor && (
-                  <EditVendorForm 
-                    vendor={editingVendor}
-                    ngos={ngos}
-                    onSuccess={() => {
-                      setIsEditVendorOpen(false);
-                      setEditingVendor(null);
-                      fetchVendors();
-                    }}
+                   <EditVendorForm 
+                     vendor={editingVendor}
+                     ngos={ngos}
+                     onSuccess={() => {
+                       setIsEditVendorOpen(false);
+                       setEditingVendor(null);
+                       fetchVendors();
+                       fetchVendorNgoAssociations();
+                     }}
                     onCancel={() => {
                       setIsEditVendorOpen(false);
                       setEditingVendor(null);
@@ -1522,20 +1565,41 @@ const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => v
     email: '',
     phone: '',
     address: '',
-    description: '',
-    ngo_id: ''
+    description: ''
   });
+  const [selectedNGOs, setSelectedNGOs] = useState<string[]>([]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (selectedNGOs.length === 0) {
+      toast.error("Please select at least one NGO");
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      // First create the vendor
+      const { data: vendorData, error: vendorError } = await supabase
         .from("vendors")
-        .insert([formData]);
+        .insert([formData])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (vendorError) throw vendorError;
 
-      toast.success("Vendor created successfully");
+      // Then create the associations
+      const associations = selectedNGOs.map(ngoId => ({
+        vendor_id: vendorData.id,
+        ngo_id: ngoId
+      }));
+
+      const { error: associationError } = await supabase
+        .from("vendor_ngo_associations")
+        .insert(associations);
+
+      if (associationError) throw associationError;
+
+      toast.success("Vendor created successfully with NGO associations");
       onSuccess();
     } catch (error) {
       console.error("Error creating vendor:", error);
@@ -1595,19 +1659,34 @@ const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => v
       </div>
 
       <div>
-        <Label htmlFor="ngo_id">Associated NGO *</Label>
-        <Select onValueChange={(value) => setFormData({...formData, ngo_id: value})} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Select an NGO" />
-          </SelectTrigger>
-          <SelectContent>
-            {ngos.filter(ngo => ngo.is_active).map((ngo) => (
-              <SelectItem key={ngo.id} value={ngo.id}>
+        <Label htmlFor="ngo_selection">Associated NGOs *</Label>
+        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+          {ngos.filter(ngo => ngo.is_active).map((ngo) => (
+            <div key={ngo.id} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id={`ngo-${ngo.id}`}
+                checked={selectedNGOs.includes(ngo.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedNGOs([...selectedNGOs, ngo.id]);
+                  } else {
+                    setSelectedNGOs(selectedNGOs.filter(id => id !== ngo.id));
+                  }
+                }}
+                className="rounded"
+              />
+              <Label htmlFor={`ngo-${ngo.id}`} className="text-sm cursor-pointer">
                 {ngo.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              </Label>
+            </div>
+          ))}
+        </div>
+        {selectedNGOs.length > 0 && (
+          <p className="text-sm text-muted-foreground mt-1">
+            Selected: {selectedNGOs.length} NGO{selectedNGOs.length > 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
       <div>
@@ -2081,9 +2160,9 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
     email: vendor.email || '',
     phone: vendor.phone || '',
     address: vendor.address || '',
-    description: vendor.description || '',
-    ngo_id: vendor.ngo_id || ''
+    description: vendor.description || ''
   });
+  const [selectedNGOs, setSelectedNGOs] = useState<string[]>([]);
 
   const [associatedUser, setAssociatedUser] = useState<User | null>(null);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
@@ -2092,7 +2171,23 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
   useEffect(() => {
     fetchAssociatedUser();
     fetchAvailableVendorUsers();
+    fetchVendorNgoAssociations();
   }, []);
+
+  const fetchVendorNgoAssociations = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vendor_ngo_associations")
+        .select("ngo_id")
+        .eq("vendor_id", vendor.id);
+
+      if (error) throw error;
+      
+      setSelectedNGOs(data?.map(assoc => assoc.ngo_id) || []);
+    } catch (error) {
+      console.error("Error fetching vendor NGO associations:", error);
+    }
+  };
 
   const fetchAssociatedUser = async () => {
     if (!vendor.user_id) return;
@@ -2173,8 +2268,15 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (selectedNGOs.length === 0) {
+      toast.error("Please select at least one NGO");
+      return;
+    }
+
     try {
-      const { error } = await supabase
+      // Update vendor data
+      const { error: vendorError } = await supabase
         .from("vendors")
         .update({
           ...formData,
@@ -2182,9 +2284,29 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
         })
         .eq("id", vendor.id);
 
-      if (error) throw error;
+      if (vendorError) throw vendorError;
 
-      toast.success("Vendor updated successfully");
+      // Delete existing associations
+      const { error: deleteError } = await supabase
+        .from("vendor_ngo_associations")
+        .delete()
+        .eq("vendor_id", vendor.id);
+
+      if (deleteError) throw deleteError;
+
+      // Create new associations
+      const associations = selectedNGOs.map(ngoId => ({
+        vendor_id: vendor.id,
+        ngo_id: ngoId
+      }));
+
+      const { error: associationError } = await supabase
+        .from("vendor_ngo_associations")
+        .insert(associations);
+
+      if (associationError) throw associationError;
+
+      toast.success("Vendor updated successfully with NGO associations");
       onSuccess();
     } catch (error) {
       console.error("Error updating vendor:", error);
@@ -2308,19 +2430,34 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
       </div>
 
       <div>
-        <Label htmlFor="ngo_id">Associated NGO *</Label>
-        <Select value={formData.ngo_id} onValueChange={(value) => setFormData({...formData, ngo_id: value})} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Select an NGO" />
-          </SelectTrigger>
-          <SelectContent>
-            {ngos.filter(ngo => ngo.is_active).map((ngo) => (
-              <SelectItem key={ngo.id} value={ngo.id}>
+        <Label htmlFor="ngo_selection">Associated NGOs *</Label>
+        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
+          {ngos.filter(ngo => ngo.is_active).map((ngo) => (
+            <div key={ngo.id} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id={`edit-ngo-${ngo.id}`}
+                checked={selectedNGOs.includes(ngo.id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedNGOs([...selectedNGOs, ngo.id]);
+                  } else {
+                    setSelectedNGOs(selectedNGOs.filter(id => id !== ngo.id));
+                  }
+                }}
+                className="rounded"
+              />
+              <Label htmlFor={`edit-ngo-${ngo.id}`} className="text-sm cursor-pointer">
                 {ngo.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              </Label>
+            </div>
+          ))}
+        </div>
+        {selectedNGOs.length > 0 && (
+          <p className="text-sm text-muted-foreground mt-1">
+            Selected: {selectedNGOs.length} NGO{selectedNGOs.length > 1 ? 's' : ''}
+          </p>
+        )}
       </div>
 
       <div>
