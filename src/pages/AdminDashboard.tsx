@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
+import { PageContentEditor } from '@/components/PageContentEditor';
 
 // Security: Input validation schemas
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -661,11 +662,12 @@ const AdminDashboard = () => {
 
         {/* Management Tabs */}
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="ngos">NGOs</TabsTrigger>
             <TabsTrigger value="vendors">Vendors</TabsTrigger>
             <TabsTrigger value="packages">Packages</TabsTrigger>
+            <TabsTrigger value="pages">Pages</TabsTrigger>
           </TabsList>
 
           <TabsContent value="users" className="space-y-4">
@@ -1174,6 +1176,63 @@ const AdminDashboard = () => {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="pages" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Page Content Management</CardTitle>
+                <CardDescription>Manage How It Works, About, and Contact Us pages</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">How It Works</CardTitle>
+                      <CardDescription>
+                        Manage the How It Works page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="how-it-works" 
+                        onSave={() => toast.success('How It Works page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">About Us</CardTitle>
+                      <CardDescription>
+                        Manage the About Us page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="about" 
+                        onSave={() => toast.success('About page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Contact Us</CardTitle>
+                      <CardDescription>
+                        Manage the Contact Us page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="contact-us" 
+                        onSave={() => toast.success('Contact Us page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
