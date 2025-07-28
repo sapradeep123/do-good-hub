@@ -505,6 +505,64 @@ function ContentBlockDialog({ isOpen, onClose, block, onSave, onUploadImage }: C
           </div>
         );
 
+      case 'steps':
+        return (
+          <div className="space-y-4">
+            {content?.map((step: any, index: number) => (
+              <div key={index} className="border rounded p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Step {step.step}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newSteps = content.filter((_: any, i: number) => i !== index);
+                      setContent(newSteps);
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                <Input
+                  value={step.title || ''}
+                  onChange={(e) => {
+                    const newSteps = [...content];
+                    newSteps[index] = { ...step, title: e.target.value };
+                    setContent(newSteps);
+                  }}
+                  placeholder="Step title"
+                />
+                <Textarea
+                  value={step.description || ''}
+                  onChange={(e) => {
+                    const newSteps = [...content];
+                    newSteps[index] = { ...step, description: e.target.value };
+                    setContent(newSteps);
+                  }}
+                  placeholder="Step description"
+                  rows={2}
+                />
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const newStep = {
+                  step: (content?.length || 0) + 1,
+                  title: '',
+                  description: ''
+                };
+                setContent([...(content || []), newStep]);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Step
+            </Button>
+          </div>
+        );
+
       case 'contact_info':
         return (
           <div className="space-y-4">
