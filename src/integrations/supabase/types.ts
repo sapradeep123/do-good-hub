@@ -56,6 +56,8 @@ export type Database = {
           payment_method: string
           payment_status: string
           quantity: number
+          service_completed_at: string | null
+          service_status: string | null
           total_amount: number
           transaction_id: string | null
           updated_at: string
@@ -72,6 +74,8 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           quantity?: number
+          service_completed_at?: string | null
+          service_status?: string | null
           total_amount: number
           transaction_id?: string | null
           updated_at?: string
@@ -88,6 +92,8 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           quantity?: number
+          service_completed_at?: string | null
+          service_status?: string | null
           total_amount?: number
           transaction_id?: string | null
           updated_at?: string
