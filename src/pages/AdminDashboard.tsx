@@ -12,9 +12,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key } from "lucide-react";
+import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key, Search } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 import { PageContentEditor } from '@/components/PageContentEditor';
@@ -2696,11 +2699,22 @@ const AssignPackageForm = ({
   onCancel: () => void; 
 }) => {
   const [selectedPackageId, setSelectedPackageId] = useState('');
+  const [open, setOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
 
   if (!ngo) return null;
 
   // Get packages that are not assigned to any NGO or are available for assignment
   const availablePackages = packages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
+  
+  // Filter packages based on search
+  const filteredPackages = availablePackages.filter(pkg => 
+    pkg.title.toLowerCase().includes(searchValue.toLowerCase()) ||
+    pkg.category?.toLowerCase().includes(searchValue.toLowerCase()) ||
+    pkg.amount.toString().includes(searchValue)
+  );
+
+  const selectedPackage = availablePackages.find(pkg => pkg.id === selectedPackageId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2730,19 +2744,64 @@ const AssignPackageForm = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="package">Select Package</Label>
-        <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Choose a package to assign" />
-          </SelectTrigger>
-          <SelectContent>
-            {availablePackages.map((pkg) => (
-              <SelectItem key={pkg.id} value={pkg.id}>
-                {pkg.title} - ₹{Number(pkg.amount).toLocaleString()}
-                {pkg.ngo_id && pkg.ngo_id !== ngo.id && ' (Currently assigned to another NGO)'}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="w-full justify-between"
+            >
+              {selectedPackage 
+                ? `${selectedPackage.title} - ₹${Number(selectedPackage.amount).toLocaleString()}`
+                : "Choose a package to assign..."
+              }
+              <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0" align="start">
+            <Command>
+              <CommandInput 
+                placeholder="Search packages..." 
+                value={searchValue}
+                onValueChange={setSearchValue}
+                className="h-9"
+              />
+              <CommandEmpty>No packages found.</CommandEmpty>
+              <CommandGroup>
+                <ScrollArea className="h-[200px]">
+                  {filteredPackages.map((pkg) => (
+                    <CommandItem
+                      key={pkg.id}
+                      value={pkg.id}
+                      onSelect={() => {
+                        setSelectedPackageId(pkg.id);
+                        setOpen(false);
+                        setSearchValue('');
+                      }}
+                      className="flex flex-col items-start p-3 cursor-pointer hover:bg-accent"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="font-medium">{pkg.title}</div>
+                        <div className="text-sm font-semibold text-primary">
+                          ₹{Number(pkg.amount).toLocaleString()}
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Category: {pkg.category || 'N/A'}
+                      </div>
+                      {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
+                        <div className="text-xs text-orange-500 mt-1">
+                          Currently assigned to another NGO
+                        </div>
+                      )}
+                    </CommandItem>
+                  ))}
+                </ScrollArea>
+              </CommandGroup>
+            </Command>
+          </PopoverContent>
+        </Popover>
         {availablePackages.length === 0 && (
           <p className="text-sm text-muted-foreground mt-2">
             No packages available for assignment. All packages are already assigned to this NGO.
