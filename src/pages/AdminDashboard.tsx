@@ -112,6 +112,8 @@ const AdminDashboard = () => {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isAssignPackageOpen, setIsAssignPackageOpen] = useState(false);
+  const [assigningToNGO, setAssigningToNGO] = useState<NGO | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -483,9 +485,70 @@ const AdminDashboard = () => {
     toast.info(`Opening edit dialog for package: ${pkg.title}`);
   };
 
+  const togglePackageForNGO = async (packageId: string, ngoId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({ is_active: !currentStatus })
+        .eq("id", packageId)
+        .eq("ngo_id", ngoId);
+
+      if (error) throw error;
+
+      toast.success(`Package ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      await fetchPackages();
+    } catch (error) {
+      console.error("Error updating package status:", error);
+      toast.error("Failed to update package status");
+    }
+  };
+
+  const assignPackageToNGO = async (packageId: string, ngoId: string) => {
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({ ngo_id: ngoId })
+        .eq("id", packageId);
+
+      if (error) throw error;
+
+      toast.success("Package assigned to NGO successfully");
+      await fetchPackages();
+    } catch (error) {
+      console.error("Error assigning package to NGO:", error);
+      toast.error("Failed to assign package to NGO");
+    }
+  };
+
+  const unassignPackageFromNGO = async (packageId: string, packageTitle: string) => {
+    if (!confirm(`Are you sure you want to unassign package "${packageTitle}" from this NGO?`)) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({ ngo_id: null })
+        .eq("id", packageId);
+
+      if (error) throw error;
+
+      toast.success("Package unassigned from NGO successfully");
+      await fetchPackages();
+    } catch (error) {
+      console.error("Error unassigning package from NGO:", error);
+      toast.error("Failed to unassign package from NGO");
+    }
+  };
+
   const editUser = (user: User) => {
     setEditingUser(user);
     setIsEditUserOpen(true);
+  };
+
+  const openAssignPackageDialog = (ngo: NGO) => {
+    setAssigningToNGO(ngo);
+    setIsAssignPackageOpen(true);
   };
 
   const generatePasswordResetToken = async (email: string, userType: 'NGO' | 'Vendor') => {
@@ -874,22 +937,33 @@ const AdminDashboard = () => {
                                           <div className="text-gray-600">₹{Number(pkg.amount).toLocaleString()}</div>
                                         </div>
                                         <div className="flex items-center space-x-1">
-                                          <Badge variant={pkg.is_active ? 'default' : 'secondary'} className="text-xs">
-                                            {pkg.is_active ? 'Active' : 'Inactive'}
-                                          </Badge>
-                                          <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              console.log("Edit button clicked for package:", pkg.title);
-                                              editPackage(pkg);
-                                            }}
-                                            className="h-8 w-8 p-0 hover:bg-gray-200"
-                                          >
-                                            <Edit className="h-4 w-4" />
-                                          </Button>
+                                           <Button
+                                             variant="ghost"
+                                             size="sm"
+                                             onClick={(e) => {
+                                               e.preventDefault();
+                                               e.stopPropagation();
+                                               togglePackageForNGO(pkg.id, ngo.id, pkg.is_active);
+                                             }}
+                                             className="h-8 w-8 p-0 hover:bg-gray-200"
+                                           >
+                                             <Badge variant={pkg.is_active ? 'default' : 'secondary'} className="text-xs">
+                                               {pkg.is_active ? 'Active' : 'Inactive'}
+                                             </Badge>
+                                           </Button>
+                                           <Button
+                                             variant="ghost"
+                                             size="sm"
+                                             onClick={(e) => {
+                                               e.preventDefault();
+                                               e.stopPropagation();
+                                               unassignPackageFromNGO(pkg.id, pkg.title);
+                                             }}
+                                             className="h-8 w-8 p-0 hover:bg-red-200 text-red-600"
+                                             title="Unassign package from NGO"
+                                           >
+                                             <Trash2 className="h-4 w-4" />
+                                           </Button>
                                         </div>
                                       </div>
                                     ))}
@@ -930,23 +1004,31 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
                           <TableCell>
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => editNGO(ngo)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteNGO(ngo.id, ngo.name)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                             <div className="flex space-x-2">
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => openAssignPackageDialog(ngo)}
+                                 title="Assign Package"
+                               >
+                                 <Plus className="h-4 w-4" />
+                               </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => editNGO(ngo)}
+                               >
+                                 <Edit className="h-4 w-4" />
+                               </Button>
+                               <Button
+                                 variant="ghost"
+                                 size="sm"
+                                 onClick={() => deleteNGO(ngo.id, ngo.name)}
+                                 className="text-destructive hover:text-destructive"
+                               >
+                                 <Trash2 className="h-4 w-4" />
+                               </Button>
+                             </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -1261,6 +1343,31 @@ const AdminDashboard = () => {
                 }}
               />
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Assign Package Dialog */}
+        <Dialog open={isAssignPackageOpen} onOpenChange={setIsAssignPackageOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign Package to {assigningToNGO?.name}</DialogTitle>
+              <DialogDescription>
+                Select an available package to assign to this NGO
+              </DialogDescription>
+            </DialogHeader>
+            <AssignPackageForm 
+              ngo={assigningToNGO}
+              packages={packages}
+              onSuccess={() => {
+                setIsAssignPackageOpen(false);
+                setAssigningToNGO(null);
+                fetchPackages();
+              }}
+              onCancel={() => {
+                setIsAssignPackageOpen(false);
+                setAssigningToNGO(null);
+              }}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -2571,6 +2678,88 @@ const EditPackageForm = ({
       <div className="flex space-x-2">
         <Button type="submit" className="flex-1">Update Package</Button>
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </form>
+  );
+};
+
+// Assign Package Form Component
+const AssignPackageForm = ({ 
+  ngo, 
+  packages, 
+  onSuccess, 
+  onCancel 
+}: { 
+  ngo: NGO | null; 
+  packages: Package[]; 
+  onSuccess: () => void; 
+  onCancel: () => void; 
+}) => {
+  const [selectedPackageId, setSelectedPackageId] = useState('');
+
+  if (!ngo) return null;
+
+  // Get packages that are not assigned to any NGO or are available for assignment
+  const availablePackages = packages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedPackageId) {
+      toast.error("Please select a package");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("packages")
+        .update({ ngo_id: ngo.id })
+        .eq("id", selectedPackageId);
+
+      if (error) throw error;
+
+      toast.success("Package assigned successfully");
+      onSuccess();
+    } catch (error) {
+      console.error("Error assigning package:", error);
+      toast.error("Failed to assign package");
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="package">Select Package</Label>
+        <Select value={selectedPackageId} onValueChange={setSelectedPackageId}>
+          <SelectTrigger>
+            <SelectValue placeholder="Choose a package to assign" />
+          </SelectTrigger>
+          <SelectContent>
+            {availablePackages.map((pkg) => (
+              <SelectItem key={pkg.id} value={pkg.id}>
+                {pkg.title} - ₹{Number(pkg.amount).toLocaleString()}
+                {pkg.ngo_id && pkg.ngo_id !== ngo.id && ' (Currently assigned to another NGO)'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {availablePackages.length === 0 && (
+          <p className="text-sm text-muted-foreground mt-2">
+            No packages available for assignment. All packages are already assigned to this NGO.
+          </p>
+        )}
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button 
+          type="submit" 
+          disabled={!selectedPackageId || availablePackages.length === 0}
+        >
+          Assign Package
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
       </div>
     </form>
   );
