@@ -30,6 +30,9 @@ const App = () => (
             <Route path="/ngo-dashboard" element={<NGODashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/password-reset" element={<PasswordReset />} />
+            <Route path="/how-it-works" element={<Index />} />
+            <Route path="/about" element={<Index />} />
+            <Route path="/contact" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

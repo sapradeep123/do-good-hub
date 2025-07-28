@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
 import { NGOCard } from "@/components/NGOCard";
@@ -9,6 +10,7 @@ import { mockNGOs } from "@/data/ngos";
 import { Search, Filter } from "lucide-react";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
@@ -123,25 +125,25 @@ const Index = () => {
             <div>
               <h4 className="font-semibold mb-4">For Donors</h4>
               <ul className="space-y-2 text-sm opacity-80">
-                <li>How it Works</li>
-                <li>Tax Benefits</li>
-                <li>Impact Stories</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/how-it-works")}>How it Works</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Tax Benefits</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Impact Stories</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">For NGOs</h4>
               <ul className="space-y-2 text-sm opacity-80">
-                <li>Partner with Us</li>
-                <li>Verification Process</li>
-                <li>Support</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Partner with Us</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Verification Process</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Support</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-sm opacity-80">
-                <li>Contact Us</li>
-                <li>Help Center</li>
-                <li>Privacy Policy</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/contact")}>Contact Us</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Help Center</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity">Privacy Policy</li>
               </ul>
             </div>
           </div>
