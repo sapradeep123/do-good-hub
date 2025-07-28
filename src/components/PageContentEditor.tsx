@@ -593,7 +593,7 @@ function ContentBlockDialog({ isOpen, onClose, block, onSave, onUploadImage }: C
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Edit {block.type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
