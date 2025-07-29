@@ -391,6 +391,125 @@ export type Database = {
           },
         ]
       }
+      tickets: {
+        Row: {
+          assigned_to_user_id: string | null
+          category: string
+          created_at: string
+          created_by_user_id: string
+          description: string
+          id: string
+          priority: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          status: string
+          title: string
+          transaction_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_user_id?: string | null
+          category: string
+          created_at?: string
+          created_by_user_id: string
+          description: string
+          id?: string
+          priority?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          status?: string
+          title: string
+          transaction_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_user_id?: string | null
+          category?: string
+          created_at?: string
+          created_by_user_id?: string
+          description?: string
+          id?: string
+          priority?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          transaction_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tickets_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transactions: {
+        Row: {
+          admin_notes: string | null
+          assigned_at: string | null
+          completed_at: string | null
+          created_at: string
+          delivered_at: string | null
+          delivery_note_url: string | null
+          donation_id: string
+          donor_user_id: string
+          id: string
+          invoice_url: string | null
+          ngo_id: string
+          package_id: string
+          shipped_at: string | null
+          status: string
+          tracking_number: string | null
+          updated_at: string
+          vendor_id: string | null
+          vendor_notes: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          assigned_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_note_url?: string | null
+          donation_id: string
+          donor_user_id: string
+          id?: string
+          invoice_url?: string | null
+          ngo_id: string
+          package_id: string
+          shipped_at?: string | null
+          status?: string
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_notes?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          assigned_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          delivery_note_url?: string | null
+          donation_id?: string
+          donor_user_id?: string
+          id?: string
+          invoice_url?: string | null
+          ngo_id?: string
+          package_id?: string
+          shipped_at?: string | null
+          status?: string
+          tracking_number?: string | null
+          updated_at?: string
+          vendor_id?: string | null
+          vendor_notes?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
