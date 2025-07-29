@@ -92,6 +92,16 @@ interface Package {
   created_at: string;
 }
 
+interface VendorNgoAssociation {
+  id: string;
+  vendor_id: string;
+  ngo_id: string;
+  created_at: string;
+  vendors?: {
+    company_name: string;
+  };
+}
+
 const AdminDashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -1261,6 +1271,7 @@ const AdminDashboard = () => {
                     <CreatePackageForm 
                       ngos={ngos}
                       vendors={vendors}
+                      vendorNgoAssociations={vendorNgoAssociations}
                       onSuccess={() => {
                         setIsCreatePackageOpen(false);
                         fetchPackages();
@@ -1400,6 +1411,7 @@ const AdminDashboard = () => {
                 package={editingPackage}
                 ngos={ngos}
                 vendors={vendors}
+                vendorNgoAssociations={vendorNgoAssociations}
                 onSuccess={() => {
                   setIsEditPackageOpen(false);
                   setEditingPackage(null);
@@ -1710,10 +1722,12 @@ const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => v
 const CreatePackageForm = ({ 
   ngos, 
   vendors, 
+  vendorNgoAssociations,
   onSuccess 
 }: { 
   ngos: NGO[]; 
-  vendors: Vendor[]; 
+  vendors: Vendor[];
+  vendorNgoAssociations: VendorNgoAssociation[];
   onSuccess: () => void; 
 }) => {
   const [formData, setFormData] = useState({
@@ -1725,6 +1739,21 @@ const CreatePackageForm = ({
     category: '',
     delivery_timeline: ''
   });
+
+  // Filter vendors based on selected NGO associations
+  const getAvailableVendors = () => {
+    if (!formData.ngo_id) return [];
+    
+    // Find vendor associations for the selected NGO
+    const ngoAssociations = vendorNgoAssociations.filter(
+      assoc => assoc.ngo_id === formData.ngo_id
+    );
+    
+    // Return vendors that are associated with the selected NGO
+    return vendors.filter(vendor => 
+      ngoAssociations.some(assoc => assoc.vendor_id === vendor.id)
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1783,18 +1812,25 @@ const CreatePackageForm = ({
           <Select 
             value={formData.vendor_id} 
             onValueChange={(value) => setFormData({...formData, vendor_id: value})}
+            disabled={!formData.ngo_id}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select Vendor" />
+              <SelectValue placeholder={!formData.ngo_id ? "Select NGO first" : "Select Vendor"} />
             </SelectTrigger>
             <SelectContent>
-              {vendors.map((vendor) => (
+              <SelectItem value="">No vendor assigned</SelectItem>
+              {getAvailableVendors().map((vendor) => (
                 <SelectItem key={vendor.id} value={vendor.id}>
                   {vendor.company_name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {formData.ngo_id && getAvailableVendors().length === 0 && (
+            <p className="text-sm text-muted-foreground mt-1">
+              No vendors associated with selected NGO
+            </p>
+          )}
         </div>
       </div>
 
@@ -2728,13 +2764,15 @@ const EditUserForm = ({ user, onSuccess, onCancel }: {
 const EditPackageForm = ({ 
   package: pkg,
   ngos, 
-  vendors, 
+  vendors,
+  vendorNgoAssociations,
   onSuccess,
   onCancel
 }: { 
   package: Package;
   ngos: NGO[]; 
-  vendors: Vendor[]; 
+  vendors: Vendor[];
+  vendorNgoAssociations: VendorNgoAssociation[];
   onSuccess: () => void; 
   onCancel: () => void;
 }) => {
@@ -2747,6 +2785,21 @@ const EditPackageForm = ({
     category: pkg.category || '',
     delivery_timeline: pkg.delivery_timeline || ''
   });
+
+  // Filter vendors based on selected NGO associations
+  const getAvailableVendors = () => {
+    if (!formData.ngo_id) return [];
+    
+    // Find vendor associations for the selected NGO
+    const ngoAssociations = vendorNgoAssociations.filter(
+      assoc => assoc.ngo_id === formData.ngo_id
+    );
+    
+    // Return vendors that are associated with the selected NGO
+    return vendors.filter(vendor => 
+      ngoAssociations.some(assoc => assoc.vendor_id === vendor.id)
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2806,19 +2859,25 @@ const EditPackageForm = ({
           <Select 
             value={formData.vendor_id || "none"} 
             onValueChange={(value) => setFormData({...formData, vendor_id: value === "none" ? "" : value})}
+            disabled={!formData.ngo_id}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select Vendor" />
+              <SelectValue placeholder={!formData.ngo_id ? "Select NGO first" : "Select Vendor"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">No vendor assigned</SelectItem>
-              {vendors.map((vendor) => (
+              {getAvailableVendors().map((vendor) => (
                 <SelectItem key={vendor.id} value={vendor.id}>
                   {vendor.company_name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {formData.ngo_id && getAvailableVendors().length === 0 && (
+            <p className="text-sm text-muted-foreground mt-1">
+              No vendors associated with selected NGO
+            </p>
+          )}
         </div>
       </div>
 
