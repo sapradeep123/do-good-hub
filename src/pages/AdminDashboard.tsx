@@ -952,52 +952,55 @@ const AdminDashboard = () => {
                           <TableCell>
                             <div>
                               <div className="font-medium">{ngo.name}</div>
-                              {ngoPackages.length > 0 && (
-                                <details className="mt-2">
-                                  <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
-                                    View {ngoPackages.length} package{ngoPackages.length > 1 ? 's' : ''}
-                                  </summary>
-                                  <div className="mt-2 p-2 bg-gray-50 rounded">
-                                    {ngoPackages.map((pkg) => (
-                                      <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
-                                        <div className="text-sm">
-                                          <div className="font-medium">{pkg.title}</div>
-                                          <div className="text-gray-600">₹{Number(pkg.amount).toLocaleString()}</div>
-                                        </div>
-                                        <div className="flex items-center space-x-1">
-                                           <Button
-                                             variant="ghost"
-                                             size="sm"
-                                             onClick={(e) => {
-                                               e.preventDefault();
-                                               e.stopPropagation();
-                                               togglePackageForNGO(pkg.id, ngo.id, pkg.is_active);
-                                             }}
-                                             className="h-8 w-8 p-0 hover:bg-gray-200"
-                                           >
-                                             <Badge variant={pkg.is_active ? 'default' : 'secondary'} className="text-xs">
-                                               {pkg.is_active ? 'Active' : 'Inactive'}
-                                             </Badge>
-                                           </Button>
-                                           <Button
-                                             variant="ghost"
-                                             size="sm"
-                                             onClick={(e) => {
-                                               e.preventDefault();
-                                               e.stopPropagation();
-                                               unassignPackageFromNGO(pkg.id, pkg.title);
-                                             }}
-                                             className="h-8 w-8 p-0 hover:bg-red-200 text-red-600"
-                                             title="Unassign package from NGO"
-                                           >
-                                             <Trash2 className="h-4 w-4" />
-                                           </Button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </details>
-                              )}
+                               {ngoPackages.length > 0 && (
+                                 <details className="mt-2">
+                                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
+                                     View {ngoPackages.length} package{ngoPackages.length > 1 ? 's' : ''}
+                                   </summary>
+                                   <div className="mt-2 p-2 bg-gray-50 rounded">
+                                     {ngoPackages.map((pkg) => (
+                                       <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
+                                         <div className="text-sm">
+                                           <div className="font-medium">{pkg.title}</div>
+                                           <div className="text-gray-600">₹{Number(pkg.amount).toLocaleString()}</div>
+                                         </div>
+                                         <Badge 
+                                           variant={pkg.is_active ? "default" : "secondary"}
+                                           className="text-xs"
+                                         >
+                                           {pkg.is_active ? "Active" : "Inactive"}
+                                         </Badge>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </details>
+                               )}
+                               
+                               {ngoVendors.length > 0 && (
+                                 <details className="mt-2">
+                                   <summary className="text-sm text-green-600 cursor-pointer hover:text-green-800">
+                                     View {ngoVendors.length} associated vendor{ngoVendors.length > 1 ? 's' : ''}
+                                   </summary>
+                                   <div className="mt-2 p-2 bg-green-50 rounded">
+                                     {ngoVendors.map((assoc) => (
+                                       <div key={assoc.id} className="flex justify-between items-center py-1 border-b border-green-200 last:border-b-0">
+                                         <div className="text-sm">
+                                           <div className="font-medium">{assoc.vendors?.company_name || 'Unknown Vendor'}</div>
+                                           <div className="text-gray-600 text-xs">
+                                             Associated since {new Date(assoc.created_at).toLocaleDateString()}
+                                           </div>
+                                         </div>
+                                         <Badge 
+                                           variant="outline"
+                                           className="text-xs bg-green-100 text-green-800"
+                                         >
+                                           Active
+                                         </Badge>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </details>
+                               )}
                             </div>
                           </TableCell>
                           <TableCell>{ngo.email}</TableCell>
