@@ -3130,8 +3130,8 @@ const EscrowManagementTable = () => {
         .from("donations")
         .select(`
           *,
-          profiles!inner(first_name, last_name, email),
-          ngos!inner(name)
+          profiles(first_name, last_name, email),
+          ngos(name)
         `)
         .in("payment_status", ["escrow_completed", "escrow_pending"])
         .order("created_at", { ascending: false });
