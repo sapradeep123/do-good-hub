@@ -1360,10 +1360,194 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="pages" className="space-y-4">
+            {/* Home Page Content */}
             <Card>
               <CardHeader>
-                <CardTitle>Page Content Management</CardTitle>
-                <CardDescription>Manage How It Works, About, and Contact Us pages</CardDescription>
+                <CardTitle>Home Page Content</CardTitle>
+                <CardDescription>Manage home page sections including hero, stats, and main content</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Hero Section</CardTitle>
+                      <CardDescription>
+                        Manage the main hero section content and call-to-action buttons
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="home-hero" 
+                        onSave={() => toast.success('Hero section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Statistics Section</CardTitle>
+                      <CardDescription>
+                        Manage the statistics displayed on the home page
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="home-stats" 
+                        onSave={() => toast.success('Statistics section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">NGO Discovery Section</CardTitle>
+                      <CardDescription>
+                        Manage the "Discover Verified NGOs" section content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="home-ngo-discovery" 
+                        onSave={() => toast.success('NGO discovery section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Trust Indicators</CardTitle>
+                      <CardDescription>
+                        Manage the trust indicators in the hero section
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="home-trust-indicators" 
+                        onSave={() => toast.success('Trust indicators updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Header and Navigation */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Header & Navigation</CardTitle>
+                <CardDescription>Manage header content and navigation menu items</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Brand & Logo</CardTitle>
+                      <CardDescription>
+                        Manage site branding and logo text
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="header-brand" 
+                        onSave={() => toast.success('Header brand updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Navigation Menu</CardTitle>
+                      <CardDescription>
+                        Manage main navigation menu items and links
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="header-navigation" 
+                        onSave={() => toast.success('Navigation menu updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Footer Content */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Footer Content</CardTitle>
+                <CardDescription>Manage all footer sections and links</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Footer Brand</CardTitle>
+                      <CardDescription>
+                        Manage footer brand section and description
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="footer-brand" 
+                        onSave={() => toast.success('Footer brand updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">For Donors Section</CardTitle>
+                      <CardDescription>
+                        Manage "For Donors" links and content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="footer-donors" 
+                        onSave={() => toast.success('For Donors section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">For NGOs Section</CardTitle>
+                      <CardDescription>
+                        Manage "For NGOs" links and content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="footer-ngos" 
+                        onSave={() => toast.success('For NGOs section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Support Section</CardTitle>
+                      <CardDescription>
+                        Manage support links including Contact Us, Help Center, Privacy Policy
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="footer-support" 
+                        onSave={() => toast.success('Support section updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Static Pages */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Static Pages</CardTitle>
+                <CardDescription>Manage individual page content</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-3">
@@ -1408,6 +1592,96 @@ const AdminDashboard = () => {
                       <PageContentEditor 
                         pageSlug="contact-us" 
                         onSave={() => toast.success('Contact Us page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Tax Benefits</CardTitle>
+                      <CardDescription>
+                        Manage the Tax Benefits page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="tax-benefits" 
+                        onSave={() => toast.success('Tax Benefits page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Impact Stories</CardTitle>
+                      <CardDescription>
+                        Manage the Impact Stories page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="impact-stories" 
+                        onSave={() => toast.success('Impact Stories page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Privacy Policy</CardTitle>
+                      <CardDescription>
+                        Manage the Privacy Policy page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="privacy-policy" 
+                        onSave={() => toast.success('Privacy Policy page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Help Center</CardTitle>
+                      <CardDescription>
+                        Manage the Help Center page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="help-center" 
+                        onSave={() => toast.success('Help Center page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Partner with Us</CardTitle>
+                      <CardDescription>
+                        Manage the Partner with Us page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="partner-with-us" 
+                        onSave={() => toast.success('Partner with Us page updated')} 
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Verification Process</CardTitle>
+                      <CardDescription>
+                        Manage the Verification Process page content
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PageContentEditor 
+                        pageSlug="verification-process" 
+                        onSave={() => toast.success('Verification Process page updated')} 
                       />
                     </CardContent>
                   </Card>
