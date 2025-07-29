@@ -3130,7 +3130,6 @@ const EscrowManagementTable = () => {
         .from("donations")
         .select(`
           *,
-          transactions!inner(*),
           profiles!inner(first_name, last_name, email),
           ngos!inner(name)
         `)
