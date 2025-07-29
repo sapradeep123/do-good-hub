@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InvoiceModal } from "@/components/InvoiceModal";
+import { PaymentModal } from "@/components/PaymentModal";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Download, Eye, CreditCard, FileText, Truck, Receipt, Settings, CheckCircle, Clock, XCircle } from "lucide-react";
@@ -34,9 +35,12 @@ const Dashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDonationId, setSelectedDonationId] = useState<string | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -94,8 +98,9 @@ const Dashboard = () => {
         return;
       }
 
-      // User is a regular user, fetch their donations
+      // User is a regular user, fetch their data
       fetchDonations();
+      fetchTransactions();
     } catch (error) {
       console.error("Error checking user role:", error);
       // If there's an error, default to regular user behavior
@@ -123,6 +128,34 @@ const Dashboard = () => {
       toast.error("An error occurred while fetching donations");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select(`
+          *,
+          donations:donation_id(
+            id,
+            package_title,
+            total_amount,
+            payment_status
+          ),
+          ngos:ngo_id(name)
+        `)
+        .eq("donor_user_id", user?.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching transactions:", error);
+        return;
+      }
+
+      setTransactions(data || []);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
     }
   };
 
@@ -172,6 +205,18 @@ const Dashboard = () => {
   const handleViewInvoice = (donationId: string) => {
     setSelectedDonationId(donationId);
     setIsInvoiceModalOpen(true);
+  };
+
+  const handlePayment = (transaction: any) => {
+    setSelectedTransaction(transaction);
+    setIsPaymentModalOpen(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    // Refresh data after successful payment
+    fetchDonations();
+    fetchTransactions();
+    toast.success("Payment completed successfully!");
   };
 
   const totalDonated = donations
@@ -246,9 +291,10 @@ const Dashboard = () => {
         </div>
 
         <Tabs defaultValue="donations" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="donations">Donations</TabsTrigger>
             <TabsTrigger value="services">Service Tracking</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
@@ -331,6 +377,25 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="payments" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Tracking</CardTitle>
+                <CardDescription>
+                  Manage payments for delivered donations. Pay after service completion for complete transparency.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PaymentTrackingTable 
+                  transactions={transactions}
+                  onPayment={handlePayment}
+                  getServiceStatusColor={getServiceStatusColor}
+                  getServiceStatusIcon={getServiceStatusIcon}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="settings" className="space-y-4">
             <ChangePasswordForm />
           </TabsContent>
@@ -342,6 +407,13 @@ const Dashboard = () => {
         onOpenChange={setIsInvoiceModalOpen}
         donationId={selectedDonationId}
         ngoName="NGO" // This should ideally come from the NGO data
+      />
+
+      <PaymentModal
+        open={isPaymentModalOpen}
+        onOpenChange={setIsPaymentModalOpen}
+        transaction={selectedTransaction}
+        onPaymentSuccess={handlePaymentSuccess}
       />
     </div>
   );
@@ -357,6 +429,13 @@ interface DonationTableProps {
 
 interface ServiceTrackingTableProps {
   donations: Donation[];
+  getServiceStatusColor: (status: string) => string;
+  getServiceStatusIcon: (status: string) => JSX.Element;
+}
+
+interface PaymentTrackingTableProps {
+  transactions: any[];
+  onPayment: (transaction: any) => void;
   getServiceStatusColor: (status: string) => string;
   getServiceStatusIcon: (status: string) => JSX.Element;
 }
@@ -488,6 +567,87 @@ const ServiceTrackingTable = ({ donations, getServiceStatusColor, getServiceStat
                   ? format(new Date(donation.service_completed_at), "MMM dd, yyyy")
                   : "Not completed"
                 }
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+};
+
+const PaymentTrackingTable = ({ transactions, onPayment, getServiceStatusColor, getServiceStatusIcon }: PaymentTrackingTableProps) => {
+  if (transactions.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No transactions found. Complete some donations first!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Package</TableHead>
+            <TableHead>NGO</TableHead>
+            <TableHead>Amount</TableHead>
+            <TableHead>Delivery Status</TableHead>
+            <TableHead>Payment Status</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {transactions.map((transaction) => (
+            <TableRow key={transaction.id}>
+              <TableCell>
+                {format(new Date(transaction.created_at), "MMM dd, yyyy")}
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">{transaction.donations?.package_title}</div>
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">{transaction.ngos?.name}</div>
+              </TableCell>
+              <TableCell className="font-medium">
+                ₹{Number(transaction.donations?.total_amount || 0).toLocaleString()}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  <Badge className={getServiceStatusColor(transaction.status || 'pending')}>
+                    <div className="flex items-center gap-1">
+                      {getServiceStatusIcon(transaction.status || 'pending')}
+                      {transaction.status || 'pending'}
+                    </div>
+                  </Badge>
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge className={getServiceStatusColor(transaction.donations?.payment_status || 'pending')}>
+                  {transaction.donations?.payment_status || 'pending'}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  {transaction.status === "delivered" && transaction.donations?.payment_status !== "completed" && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => onPayment(transaction)}
+                    >
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      Pay Now
+                    </Button>
+                  )}
+                  {transaction.donations?.payment_status === "completed" && (
+                    <Badge variant="secondary">
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Paid
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}
