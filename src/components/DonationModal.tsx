@@ -21,6 +21,12 @@ interface DonationModalProps {
   onPaymentSuccess: (donationId: string) => void;
 }
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 export const DonationModal = ({ 
   open, 
   onOpenChange, 
@@ -44,51 +50,127 @@ export const DonationModal = ({
     setQuantity(newQuantity);
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
   const simulatePayment = async () => {
-    setIsProcessing(true);
-    
     try {
-      // Simulate payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      setIsProcessing(true);
       
-      // Generate invoice number
-      const invoiceNumber = `INV-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-      const transactionId = `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-      
-      // Save donation to database
-      const { data, error } = await supabase
-        .from('donations')
-        .insert({
-          user_id: user!.id,
-          ngo_id: ngoId,
-          package_id: donationPackage.id,
-          package_title: donationPackage.title,
-          package_amount: donationPackage.amount,
-          quantity: quantity,
-          total_amount: totalAmount,
-          payment_method: 'card',
-          payment_status: 'paid',
-          transaction_id: transactionId,
-          invoice_number: invoiceNumber,
-        })
-        .select()
+      // Create Razorpay order for immediate payment to admin escrow
+      const { data: orderData, error: orderError } = await supabase.functions.invoke(
+        'create-escrow-payment',
+        {
+          body: { 
+            amount: totalAmount,
+            package_id: donationPackage.id,
+            ngo_id: ngoId,
+            quantity,
+            package_title: donationPackage.title,
+            package_amount: donationPackage.amount,
+            description: `Escrow payment for ${donationPackage.title} to ${ngoName}`
+          }
+        }
+      );
+
+      if (orderError) {
+        throw new Error(orderError.message);
+      }
+
+      if (!orderData.success) {
+        throw new Error(orderData.error || "Failed to create payment order");
+      }
+
+      // Load Razorpay script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        throw new Error("Failed to load Razorpay SDK");
+      }
+
+      // Get user profile for payment details
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
         .single();
 
-      if (error) throw error;
+      const options = {
+        key: 'rzp_test_nCd2hfvHCMCHEt',
+        amount: orderData.razorpay_order.amount,
+        currency: orderData.razorpay_order.currency,
+        name: 'NGO Platform - Admin Escrow',
+        description: `Escrow payment for ${donationPackage.title}`,
+        order_id: orderData.razorpay_order.id,
+        prefill: {
+          name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Donor',
+          email: profile?.email || '',
+          contact: profile?.phone || ''
+        },
+        theme: {
+          color: '#3B82F6'
+        },
+        handler: async function (response: any) {
+          try {
+            // Verify escrow payment
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+              'verify-escrow-payment',
+              {
+                body: {
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_signature: response.razorpay_signature,
+                  donation_id: orderData.donation_id
+                }
+              }
+            );
 
-      toast({
-        title: "Payment Successful!",
-        description: `Thank you for your donation of ₹${totalAmount.toLocaleString()} to ${ngoName}`,
-      });
+            if (verifyError || !verifyData.success) {
+              throw new Error(verifyData?.error || verifyError?.message || "Payment verification failed");
+            }
 
-      onPaymentSuccess(data.id);
-      onOpenChange(false);
-      setQuantity(1);
-    } catch (error: any) {
+            toast({
+              title: "Payment Successful!",
+              description: "Your donation is now in admin escrow. Processing will begin shortly.",
+            });
+            
+            onPaymentSuccess(orderData.donation_id);
+            onOpenChange(false);
+            setQuantity(1);
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            toast({
+              title: "Payment verification failed",
+              description: error instanceof Error ? error.message : "Payment verification failed",
+              variant: "destructive"
+            });
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            setIsProcessing(false);
+            toast({
+              title: "Payment cancelled",
+              description: "You can try again anytime.",
+            });
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+      
+    } catch (error) {
+      console.error('Payment error:', error);
       toast({
-        title: "Payment Failed",
-        description: error.message || "Something went wrong. Please try again.",
-        variant: "destructive",
+        title: "Payment failed",
+        description: error instanceof Error ? error.message : "Failed to process payment",
+        variant: "destructive"
       });
     } finally {
       setIsProcessing(false);

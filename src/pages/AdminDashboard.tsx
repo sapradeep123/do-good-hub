@@ -17,7 +17,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key, Search } from "lucide-react";
+import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key, Search, CreditCard, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 import { PageContentEditor } from '@/components/PageContentEditor';
@@ -761,11 +761,12 @@ const AdminDashboard = () => {
 
         {/* Management Tabs */}
         <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="ngos">NGOs</TabsTrigger>
             <TabsTrigger value="vendors">Vendors</TabsTrigger>
             <TabsTrigger value="packages">Packages</TabsTrigger>
+            <TabsTrigger value="escrow">Escrow</TabsTrigger>
             <TabsTrigger value="pages">Pages</TabsTrigger>
           </TabsList>
 
@@ -1337,6 +1338,23 @@ const AdminDashboard = () => {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="escrow" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Escrow Payment Management
+                </CardTitle>
+                <CardDescription>
+                  Manage user payments held in escrow, assign vendors, and release payments after delivery confirmation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EscrowManagementTable />
               </CardContent>
             </Card>
           </TabsContent>
@@ -3092,6 +3110,251 @@ const AssignPackageForm = ({
         </Button>
       </div>
     </form>
+  );
+};
+
+const EscrowManagementTable = () => {
+  const [escrowTransactions, setEscrowTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [assigningVendor, setAssigningVendor] = useState<string | null>(null);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+
+  useEffect(() => {
+    fetchEscrowTransactions();
+    fetchVendors();
+  }, []);
+
+  const fetchEscrowTransactions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("donations")
+        .select(`
+          *,
+          transactions!inner(*),
+          profiles!inner(first_name, last_name, email),
+          ngos!inner(name)
+        `)
+        .in("payment_status", ["escrow_completed", "escrow_pending"])
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching escrow transactions:", error);
+        toast.error("Failed to fetch escrow transactions");
+        return;
+      }
+
+      setEscrowTransactions(data || []);
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("An error occurred while fetching escrow transactions");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("is_active", true);
+
+      if (error) {
+        console.error("Error fetching vendors:", error);
+        return;
+      }
+
+      setVendors(data || []);
+    } catch (error) {
+      console.error("Error fetching vendors:", error);
+    }
+  };
+
+  const assignVendor = async (donationId: string, vendorId: string) => {
+    try {
+      setAssigningVendor(donationId);
+
+      // Update transaction with vendor assignment
+      const { error: transactionError } = await supabase
+        .from("transactions")
+        .update({
+          vendor_id: vendorId,
+          status: "vendor_assigned",
+          assigned_at: new Date().toISOString(),
+          admin_notes: "Vendor assigned for delivery processing"
+        })
+        .eq("donation_id", donationId);
+
+      if (transactionError) {
+        throw transactionError;
+      }
+
+      // Update donation status
+      const { error: donationError } = await supabase
+        .from("donations")
+        .update({
+          service_status: "assigned",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", donationId);
+
+      if (donationError) {
+        throw donationError;
+      }
+
+      toast.success("Vendor assigned successfully!");
+      fetchEscrowTransactions();
+    } catch (error: any) {
+      console.error("Error assigning vendor:", error);
+      toast.error("Failed to assign vendor");
+    } finally {
+      setAssigningVendor(null);
+    }
+  };
+
+  const releasePayment = async (donationId: string) => {
+    try {
+      // This would integrate with actual payment release to vendor
+      const { error } = await supabase
+        .from("donations")
+        .update({
+          payment_status: "completed",
+          service_status: "completed",
+          service_completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", donationId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update transaction
+      const { error: transactionError } = await supabase
+        .from("transactions")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          admin_notes: "Payment released to vendor after delivery confirmation"
+        })
+        .eq("donation_id", donationId);
+
+      if (transactionError) {
+        console.error("Error updating transaction:", transactionError);
+      }
+
+      toast.success("Payment released to vendor!");
+      fetchEscrowTransactions();
+    } catch (error: any) {
+      console.error("Error releasing payment:", error);
+      toast.error("Failed to release payment");
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-8">Loading escrow transactions...</div>;
+  }
+
+  if (escrowTransactions.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">No escrow transactions found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Donor</TableHead>
+            <TableHead>Package</TableHead>
+            <TableHead>NGO</TableHead>
+            <TableHead>Amount</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {escrowTransactions.map((transaction) => (
+            <TableRow key={transaction.id}>
+              <TableCell>
+                <div>
+                  <div className="font-medium">
+                    {transaction.profiles?.first_name} {transaction.profiles?.last_name}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {transaction.profiles?.email}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div>
+                  <div className="font-medium">{transaction.package_title}</div>
+                  <div className="text-sm text-muted-foreground">
+                    Qty: {transaction.quantity}
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>{transaction.ngos?.name}</TableCell>
+              <TableCell className="font-medium">
+                ₹{Number(transaction.total_amount).toLocaleString()}
+              </TableCell>
+              <TableCell>
+                <Badge 
+                  variant={transaction.payment_status === "escrow_completed" ? "default" : "secondary"}
+                >
+                  {transaction.payment_status === "escrow_completed" ? "Ready to Assign" : "Processing"}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {format(new Date(transaction.created_at), "MMM dd, yyyy")}
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2">
+                  {transaction.payment_status === "escrow_completed" && 
+                   transaction.service_status === "admin_review" && (
+                    <Select
+                      onValueChange={(vendorId) => assignVendor(transaction.id, vendorId)}
+                      disabled={assigningVendor === transaction.id}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Assign Vendor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {vendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            {vendor.company_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {transaction.service_status === "assigned" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => releasePayment(transaction.id)}
+                    >
+                      <ArrowRight className="h-4 w-4 mr-1" />
+                      Release Payment
+                    </Button>
+                  )}
+                  {transaction.service_status === "completed" && (
+                    <Badge variant="secondary">
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      Payment Released
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 };
 
