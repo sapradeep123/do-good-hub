@@ -126,24 +126,24 @@ const Index = () => {
               <h4 className="font-semibold mb-4">For Donors</h4>
               <ul className="space-y-2 text-sm opacity-80">
                 <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/how-it-works")}>How it Works</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Tax Benefits</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Impact Stories</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/tax-benefits")}>Tax Benefits</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/impact-stories")}>Impact Stories</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">For NGOs</h4>
               <ul className="space-y-2 text-sm opacity-80">
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Partner with Us</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Verification Process</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Support</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/partner-with-us")}>Partner with Us</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/verification-process")}>Verification Process</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/support")}>Support</li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-sm opacity-80">
                 <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/contact")}>Contact Us</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Help Center</li>
-                <li className="cursor-pointer hover:opacity-100 transition-opacity">Privacy Policy</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/help-center")}>Help Center</li>
+                <li className="cursor-pointer hover:opacity-100 transition-opacity" onClick={() => navigate("/privacy-policy")}>Privacy Policy</li>
               </ul>
             </div>
           </div>
