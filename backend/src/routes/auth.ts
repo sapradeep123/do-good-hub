@@ -53,7 +53,7 @@ router.post('/register', [
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.user_id, email: user.email, role: user.role },
+      { userId: (user as any).user_id, email: (user as any).email, role: (user as any).role },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: '7d' }
     );
@@ -63,12 +63,12 @@ router.post('/register', [
       message: 'User registered successfully',
       data: {
         user: {
-          id: user.id,
-          userId: user.user_id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role
+          id: (user as any).id,
+          userId: (user as any).user_id,
+          email: (user as any).email,
+          firstName: (user as any).first_name,
+          lastName: (user as any).last_name,
+          role: (user as any).role
         },
         token
       }
@@ -112,7 +112,15 @@ router.post('/login', [
       });
     }
 
-    const user = result.rows[0];
+    const user = result.rows[0] as any; // Type assertion for mock data
+    
+    // Ensure we have a valid user object with required properties
+    if (!user || !user.user_id || !user.email || !user.role || !user.password_hash) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid user data'
+      });
+    }
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
@@ -125,7 +133,7 @@ router.post('/login', [
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: user.user_id, email: user.email, role: user.role },
+      { userId: (user as any).user_id, email: (user as any).email, role: (user as any).role },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: '7d' }
     );
@@ -135,12 +143,12 @@ router.post('/login', [
       message: 'Login successful',
       data: {
         user: {
-          id: user.id,
-          userId: user.user_id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role
+          id: (user as any).id,
+          userId: (user as any).user_id,
+          email: (user as any).email,
+          firstName: (user as any).first_name,
+          lastName: (user as any).last_name,
+          role: (user as any).role
         },
         token
       }
@@ -181,18 +189,18 @@ router.get('/me', async (req: Request, res: Response) => {
       });
     }
 
-    const user = result.rows[0];
+    const user = result.rows[0] as any; // Type assertion for mock data
 
     return res.json({
       success: true,
       data: {
         user: {
-          id: user.id,
-          userId: user.user_id,
-          email: user.email,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          role: user.role
+          id: (user as any).id,
+          userId: (user as any).user_id,
+          email: (user as any).email,
+          firstName: (user as any).first_name,
+          lastName: (user as any).last_name,
+          role: (user as any).role
         }
       }
     });

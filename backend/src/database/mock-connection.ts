@@ -1,20 +1,51 @@
-import dotenv from 'dotenv';
+// Mock database connection for demonstration purposes
+// This allows the application to work even without a real database connection
 
-dotenv.config();
+interface MockUser {
+  id: string;
+  user_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  password_hash: string;
+  role: string;
+  created_at: string;
+}
 
-// For demonstration purposes, we'll use mock data
-// This allows the application to work without database setup
-console.log('🔧 Using mock database connection for demonstration');
+interface MockNGO {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string;
+  mission: string;
+  website: string;
+  address: string;
+  city: string;
+  state: string;
+  verified: boolean;
+}
 
-// Mock data with correct password hashes
-const mockUsers = [
+interface MockPackage {
+  id: string;
+  ngo_id: string;
+  title: string;
+  description: string;
+  amount: number;
+  category: string;
+  target_quantity: number;
+  current_quantity: number;
+  status: string;
+}
+
+// Mock data
+const mockUsers: MockUser[] = [
   {
     id: '1',
     user_id: 'admin-user-id',
     email: 'admin@dogoodhub.com',
     first_name: 'Admin',
     last_name: 'User',
-    password_hash: '$2a$10$C3Gi.3J.LslKr0BcfO1oJuvHtTPnDV6dXH52x2Rrl/PGl/dVnu.S2', // password: Admin@123
+    password_hash: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: Admin@123
     role: 'admin',
     created_at: new Date().toISOString()
   },
@@ -24,13 +55,13 @@ const mockUsers = [
     email: 'testuser2@gmail.com',
     first_name: 'Test',
     last_name: 'User',
-    password_hash: '$2a$10$C3Gi.3J.LslKr0BcfO1oJuvHtTPnDV6dXH52x2Rrl/PGl/dVnu.S2', // password: Password123
+    password_hash: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password: Password123
     role: 'user',
     created_at: new Date().toISOString()
   }
 ];
 
-const mockNGOs = [
+const mockNGOs: MockNGO[] = [
   {
     id: 'ngo-1',
     user_id: 'test-user-id',
@@ -57,7 +88,7 @@ const mockNGOs = [
   }
 ];
 
-const mockPackages = [
+const mockPackages: MockPackage[] = [
   {
     id: 'pkg-1',
     ngo_id: 'ngo-1',
@@ -130,10 +161,12 @@ const mockPool = {
     }
     
     if (text.includes('INSERT INTO profiles')) {
+      // Return the first mock user for registration
       return { rows: [mockUsers[0]] };
     }
     
     if (text.includes('INSERT INTO ngos')) {
+      // Return the first mock NGO for NGO creation
       return { rows: [mockNGOs[0]] };
     }
     

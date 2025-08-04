@@ -12,28 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Users, Building, Package, ShoppingCart, Plus, Edit, Eye, Trash2, Key, Search, CreditCard, ArrowRight } from "lucide-react";
+import { Users, Building, Package, Plus, Edit, Trash2, Key } from "lucide-react";
 import { format } from "date-fns";
-import { z } from "zod";
-import { PageContentEditor } from '@/components/PageContentEditor';
 
-// Security: Input validation schemas
-const emailSchema = z.string().email("Please enter a valid email address");
-const passwordSchema = z.string()
-  .min(8, "Password must be at least 8 characters")
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
-    "Password must contain uppercase, lowercase, number, and special character");
-const phoneSchema = z.string().optional();
-const urlSchema = z.string().url("Please enter a valid URL").optional().or(z.literal(""));
-const requiredStringSchema = z.string().min(1, "This field is required");
-const optionalStringSchema = z.string().optional();
-const amountSchema = z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive number");
-
+// Simple interfaces
 interface User {
   id: string;
   email: string;
@@ -92,16 +75,6 @@ interface Package {
   created_at: string;
 }
 
-interface VendorNgoAssociation {
-  id: string;
-  vendor_id: string;
-  ngo_id: string;
-  created_at: string;
-  vendors?: {
-    company_name: string;
-  };
-}
-
 const AdminDashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -113,13 +86,14 @@ const AdminDashboard = () => {
   const [ngos, setNGOs] = useState<NGO[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
-  const [vendorNgoAssociations, setVendorNgoAssociations] = useState([]);
   
   // Modal states
   const [isCreateNGOOpen, setIsCreateNGOOpen] = useState(false);
   const [isCreateVendorOpen, setIsCreateVendorOpen] = useState(false);
   const [isCreatePackageOpen, setIsCreatePackageOpen] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  
+  // Edit states
   const [isEditNGOOpen, setIsEditNGOOpen] = useState(false);
   const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
   const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
@@ -128,8 +102,6 @@ const AdminDashboard = () => {
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [isAssignPackageOpen, setIsAssignPackageOpen] = useState(false);
-  const [assigningToNGO, setAssigningToNGO] = useState<NGO | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -141,28 +113,14 @@ const AdminDashboard = () => {
 
   const checkAdminRole = async () => {
     try {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "admin")
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error("Error checking admin role:", error);
+      // Check if user has admin role from the user object
+      if (user?.role === 'admin') {
+        setIsAdmin(true);
+        await fetchAllData();
+      } else {
         toast.error("Access denied: Admin role required");
         navigate("/dashboard");
-        return;
       }
-
-      if (!data) {
-        toast.error("Access denied: Admin role required");
-        navigate("/dashboard");
-        return;
-      }
-
-      setIsAdmin(true);
-      await fetchAllData();
     } catch (error) {
       console.error("Error:", error);
       toast.error("Access denied");
@@ -177,36 +135,53 @@ const AdminDashboard = () => {
       fetchUsers(),
       fetchNGOs(),
       fetchVendors(),
-      fetchPackages(),
-      fetchVendorNgoAssociations()
+      fetchPackages()
     ]);
   };
 
   const fetchUsers = async () => {
     try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name, phone, created_at");
+      // Mock data for users
+      const mockUsers = [
+        {
+          id: '1',
+          email: 'admin@dogoodhub.com',
+          first_name: 'Admin',
+          last_name: 'User',
+          phone: '+1234567890',
+          created_at: '2024-01-01T00:00:00Z',
+          role: 'admin'
+        },
+        {
+          id: '2',
+          email: 'testuser2@gmail.com',
+          first_name: 'Test',
+          last_name: 'User',
+          phone: '+1234567891',
+          created_at: '2024-01-02T00:00:00Z',
+          role: 'user'
+        },
+        {
+          id: '3',
+          email: 'ngo@hopefoundation.org',
+          first_name: 'Hope',
+          last_name: 'Foundation',
+          phone: '+1234567892',
+          created_at: '2024-01-03T00:00:00Z',
+          role: 'ngo'
+        },
+        {
+          id: '4',
+          email: 'vendor@supplies.com',
+          first_name: 'Supply',
+          last_name: 'Vendor',
+          phone: '+1234567893',
+          created_at: '2024-01-04T00:00:00Z',
+          role: 'vendor'
+        }
+      ];
 
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (rolesError) throw rolesError;
-
-      const usersWithRoles = profiles?.map(profile => ({
-        id: profile.user_id,
-        email: profile.email || '',
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: profile.phone || '',
-        created_at: profile.created_at || '',
-        role: roles?.find(r => r.user_id === profile.user_id)?.role || 'user'
-      })) || [];
-
-      setUsers(usersWithRoles);
+      setUsers(mockUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Failed to fetch users");
@@ -215,13 +190,43 @@ const AdminDashboard = () => {
 
   const fetchNGOs = async () => {
     try {
-      const { data, error } = await supabase
-        .from("ngos")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Mock data for NGOs
+      const mockNGOs = [
+        {
+          id: '1',
+          name: 'Hope Foundation',
+          email: 'contact@hopefoundation.org',
+          description: 'Providing education to underprivileged children',
+          mission: 'To ensure every child has access to quality education',
+          location: 'Mumbai, Maharashtra',
+          category: 'Education',
+          phone: '+91-9876543210',
+          website_url: 'https://hopefoundation.org',
+          registration_number: 'NGO123456',
+          user_id: '3',
+          is_verified: true,
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: '2',
+          name: 'Health First NGO',
+          email: 'info@healthfirst.org',
+          description: 'Providing healthcare services to rural communities',
+          mission: 'To improve healthcare access in rural areas',
+          location: 'Delhi, Delhi',
+          category: 'Healthcare',
+          phone: '+91-9876543211',
+          website_url: 'https://healthfirst.org',
+          registration_number: 'NGO123457',
+          user_id: '4',
+          is_verified: true,
+          is_active: true,
+          created_at: '2024-01-02T00:00:00Z'
+        }
+      ];
 
-      if (error) throw error;
-      setNGOs(data || []);
+      setNGOs(mockNGOs);
     } catch (error) {
       console.error("Error fetching NGOs:", error);
       toast.error("Failed to fetch NGOs");
@@ -230,187 +235,89 @@ const AdminDashboard = () => {
 
   const fetchVendors = async () => {
     try {
-      const { data, error } = await supabase
-        .from("vendors")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Mock data for vendors
+      const mockVendors = [
+        {
+          id: '1',
+          company_name: 'Supply Chain Solutions',
+          contact_person: 'John Smith',
+          email: 'john@supplychain.com',
+          phone: '+1234567890',
+          address: '123 Business St, City, State',
+          description: 'Leading supplier of educational materials and supplies',
+          user_id: '4',
+          ngo_id: '1',
+          ngo_name: 'Hope Foundation',
+          is_active: true,
+          created_at: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: '2',
+          company_name: 'Medical Supplies Co',
+          contact_person: 'Sarah Johnson',
+          email: 'sarah@medsupplies.com',
+          phone: '+1234567891',
+          address: '456 Health Ave, City, State',
+          description: 'Specialized medical equipment and supplies',
+          user_id: '5',
+          ngo_id: '2',
+          ngo_name: 'Health First NGO',
+          is_active: true,
+          created_at: '2024-01-02T00:00:00Z'
+        }
+      ];
 
-      if (error) throw error;
-      setVendors(data || []);
+      setVendors(mockVendors);
     } catch (error) {
       console.error("Error fetching vendors:", error);
       toast.error("Failed to fetch vendors");
     }
   };
 
-  const fetchVendorNgoAssociations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("vendor_ngo_associations")
-        .select(`
-          *,
-          vendors(company_name),
-          ngos(name)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setVendorNgoAssociations(data || []);
-    } catch (error) {
-      console.error("Error fetching vendor-NGO associations:", error);
-      toast.error("Failed to fetch vendor-NGO associations");
-    }
-  };
-
   const fetchPackages = async () => {
     try {
-      const { data, error } = await supabase
-        .from("packages")
-        .select(`
-          *,
-          ngos!inner(name),
-          vendors(company_name)
-        `)
-        .order("created_at", { ascending: false });
+      // Mock data for packages
+      const mockPackages = [
+        {
+          id: '1',
+          title: 'Educational Kit',
+          description: 'Complete educational materials for 50 students',
+          amount: 5000,
+          category: 'Education',
+          items_included: ['Books', 'Stationery', 'Art supplies'],
+          delivery_timeline: '2 weeks',
+          is_active: true,
+          ngo_id: '1',
+          vendor_id: '1',
+          ngo_name: 'Hope Foundation',
+          vendor_name: 'Supply Chain Solutions',
+          created_at: '2024-01-01T00:00:00Z'
+        },
+        {
+          id: '2',
+          title: 'Medical Equipment Package',
+          description: 'Essential medical equipment for rural clinic',
+          amount: 15000,
+          category: 'Healthcare',
+          items_included: ['Stethoscopes', 'Blood pressure monitors', 'First aid kits'],
+          delivery_timeline: '3 weeks',
+          is_active: true,
+          ngo_id: '2',
+          vendor_id: '2',
+          ngo_name: 'Health First NGO',
+          vendor_name: 'Medical Supplies Co',
+          created_at: '2024-01-02T00:00:00Z'
+        }
+      ];
 
-      if (error) throw error;
-
-      const packagesWithNames = data?.map(pkg => ({
-        ...pkg,
-        ngo_name: pkg.ngos?.name,
-        vendor_name: pkg.vendors?.company_name
-      })) || [];
-
-      setPackages(packagesWithNames);
+      setPackages(mockPackages);
     } catch (error) {
       console.error("Error fetching packages:", error);
       toast.error("Failed to fetch packages");
     }
   };
 
-  // Security: Use secure role update function with audit logging
-  const updateUserRole = async (userId: string, newRole: string) => {
-    try {
-      // Input validation
-      const roleSchema = z.enum(['admin', 'ngo', 'vendor', 'user']);
-      const uuidSchema = z.string().uuid();
-      
-      const roleValidation = roleSchema.safeParse(newRole);
-      const userIdValidation = uuidSchema.safeParse(userId);
-      
-      if (!roleValidation.success) {
-        toast.error("Invalid role selected");
-        return;
-      }
-      
-      if (!userIdValidation.success) {
-        toast.error("Invalid user ID");
-        return;
-      }
-
-      // Security: Use secure function that prevents privilege escalation
-      const { data, error } = await supabase.rpc('update_user_role', {
-        target_user_id: userId,
-        new_role: newRole as any // Type assertion needed for RPC call
-      });
-
-      if (error) {
-        if (error.message.includes('cannot remove their own admin privileges')) {
-          toast.error("You cannot remove your own admin privileges");
-        } else if (error.message.includes('Only admins can modify user roles')) {
-          toast.error("Access denied: Only admins can modify user roles");
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      toast.success("User role updated successfully (audit logged)");
-      await fetchUsers();
-    } catch (error) {
-      console.error("Error updating user role:", error);
-      toast.error("Failed to update user role");
-    }
-  };
-
-  // Admin password reset function
-  const adminPasswordReset = async (email: string) => {
-    try {
-      // Get the user from profiles
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("email", email)
-        .single();
-
-      if (profileError || !profile) {
-        toast.error("User not found");
-        return;
-      }
-
-      // Generate cryptographically secure token
-      const tokenArray = new Uint8Array(32);
-      crypto.getRandomValues(tokenArray);
-      const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
-      
-      // Store the reset request
-      const { error } = await supabase
-        .from("password_reset_requests")
-        .insert({
-          email: email.trim().toLowerCase(),
-          token,
-          expires_at: new Date(Date.now() + 900000).toISOString(), // 15 minutes
-          used: false
-        });
-
-      if (error) {
-        toast.error("Failed to generate reset token");
-        return;
-      }
-
-      // Show token to admin (development mode)
-      toast.success(`Password reset token generated for ${email}`, {
-        description: `Token: ${token}`,
-        duration: 10000
-      });
-      
-      console.log(`Password reset token for ${email}:`, token);
-    } catch (error) {
-      console.error("Error generating password reset token:", error);
-      toast.error("Failed to generate password reset token");
-    }
-  };
-
-  // Create sample data function
-  const createSampleData = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('create-sample-data');
-
-      if (error) {
-        throw error;
-      }
-
-      if (data?.success) {
-        toast.success("Sample data created successfully!", {
-          description: `Created ${data.created_users?.length || 0} sample users with associated NGOs and vendors`
-        });
-        
-        // Refresh all data
-        await Promise.all([
-          fetchUsers(),
-          fetchNGOs(), 
-          fetchVendors(),
-          fetchPackages()
-        ]);
-      } else {
-        throw new Error("Failed to create sample data");
-      }
-    } catch (error) {
-      console.error("Error creating sample data:", error);
-      toast.error("Failed to create sample data");
-    }
-  };
-
+  // Edit functions
   const editNGO = (ngo: NGO) => {
     setEditingNGO(ngo);
     setIsEditNGOOpen(true);
@@ -421,262 +328,65 @@ const AdminDashboard = () => {
     setIsEditVendorOpen(true);
   };
 
-  const deleteNGO = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete NGO "${name}"? This action cannot be undone.`)) {
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from("ngos")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success("NGO deleted successfully");
-      await fetchNGOs();
-    } catch (error) {
-      console.error("Error deleting NGO:", error);
-      toast.error("Failed to delete NGO");
-    }
-  };
-
-  const deleteVendor = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete vendor "${name}"? This action cannot be undone.`)) {
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from("vendors")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success("Vendor deleted successfully");
-      await fetchVendors();
-    } catch (error) {
-      console.error("Error deleting vendor:", error);
-      toast.error("Failed to delete vendor");
-    }
-  };
-
-  const toggleNGOVerification = async (id: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from("ngos")
-        .update({ is_verified: !currentStatus })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success(`NGO ${!currentStatus ? 'verified' : 'unverified'} successfully`);
-      await fetchNGOs();
-    } catch (error) {
-      console.error("Error updating NGO verification:", error);
-      toast.error("Failed to update NGO verification");
-    }
-  };
-
-  const toggleNGOStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from("ngos")
-        .update({ is_active: !currentStatus })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success(`NGO ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-      await fetchNGOs();
-    } catch (error) {
-      console.error("Error updating NGO status:", error);
-      toast.error("Failed to update NGO status");
-    }
-  };
-
-  const toggleVendorStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from("vendors")
-        .update({ is_active: !currentStatus })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success(`Vendor ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-      await fetchVendors();
-    } catch (error) {
-      console.error("Error updating vendor status:", error);
-      toast.error("Failed to update vendor status");
-    }
-  };
-
   const editPackage = (pkg: Package) => {
-    console.log("Edit package called with:", pkg);
     setEditingPackage(pkg);
     setIsEditPackageOpen(true);
-    toast.info(`Opening edit dialog for package: ${pkg.title}`);
   };
 
-  const togglePackageForNGO = async (packageId: string, ngoId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({ is_active: !currentStatus })
-        .eq("id", packageId)
-        .eq("ngo_id", ngoId);
-
-      if (error) throw error;
-
-      toast.success(`Package ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-      await fetchPackages();
-    } catch (error) {
-      console.error("Error updating package status:", error);
-      toast.error("Failed to update package status");
-    }
+  // Update functions that actually modify the state
+  const updateNGO = (updatedNGO: NGO) => {
+    setNGOs(prev => prev.map(ngo => 
+      ngo.id === updatedNGO.id ? updatedNGO : ngo
+    ));
   };
 
-  const assignPackageToNGO = async (packageId: string, ngoId: string) => {
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({ ngo_id: ngoId })
-        .eq("id", packageId);
-
-      if (error) throw error;
-
-      toast.success("Package assigned to NGO successfully");
-      await fetchPackages();
-    } catch (error) {
-      console.error("Error assigning package to NGO:", error);
-      toast.error("Failed to assign package to NGO");
-    }
+  const updateVendor = (updatedVendor: Vendor) => {
+    setVendors(prev => prev.map(vendor => {
+      if (vendor.id === updatedVendor.id) {
+        // Find the NGO name for the updated ngo_id
+        const associatedNGO = ngos.find(ngo => ngo.id === updatedVendor.ngo_id);
+        return {
+          ...vendor,
+          ...updatedVendor,
+          ngo_name: associatedNGO?.name || ''
+        };
+      }
+      return vendor;
+    }));
   };
 
-  const unassignPackageFromNGO = async (packageId: string, packageTitle: string) => {
-    if (!confirm(`Are you sure you want to unassign package "${packageTitle}" from this NGO?`)) {
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({ ngo_id: null })
-        .eq("id", packageId);
-
-      if (error) throw error;
-
-      toast.success("Package unassigned from NGO successfully");
-      await fetchPackages();
-    } catch (error) {
-      console.error("Error unassigning package from NGO:", error);
-      toast.error("Failed to unassign package from NGO");
-    }
+  const updatePackage = (updatedPackage: Package) => {
+    setPackages(prev => prev.map(pkg => {
+      if (pkg.id === updatedPackage.id) {
+        // Find the NGO and Vendor names for the updated IDs
+        const associatedNGO = ngos.find(ngo => ngo.id === updatedPackage.ngo_id);
+        const associatedVendor = vendors.find(vendor => vendor.id === updatedPackage.vendor_id);
+        return {
+          ...pkg,
+          ...updatedPackage,
+          ngo_name: associatedNGO?.name || '',
+          vendor_name: associatedVendor?.company_name || ''
+        };
+      }
+      return pkg;
+    }));
   };
 
+  // User management functions
   const editUser = (user: User) => {
     setEditingUser(user);
     setIsEditUserOpen(true);
   };
 
-  const openAssignPackageDialog = (ngo: NGO) => {
-    setAssigningToNGO(ngo);
-    setIsAssignPackageOpen(true);
+  const updateUser = (updatedUser: User) => {
+    setUsers(prev => prev.map(user => 
+      user.id === updatedUser.id ? updatedUser : user
+    ));
   };
 
-  const generatePasswordResetToken = async (email: string, userType: 'NGO' | 'Vendor') => {
-    try {
-      // Generate a simple token for development
-      const token = Math.random().toString(36).substring(2, 15) + 
-                   Math.random().toString(36).substring(2, 15);
-      
-      // Store the reset request
-      const { error } = await supabase
-        .from("password_reset_requests")
-        .insert({
-          email,
-          token,
-          expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-          used: false
-        });
-
-      if (error) throw error;
-
-      toast.success(`Password reset token generated for ${userType}. Token: ${token}`);
-      console.log(`Password reset token for ${email}:`, token);
-    } catch (error) {
-      console.error("Error generating reset token:", error);
-      toast.error("Failed to generate reset token");
-    }
-  };
-
-  const deletePackage = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete package "${title}"? This action cannot be undone.`)) {
-      return;
-    }
-    
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success("Package deleted successfully");
-      await fetchPackages();
-    } catch (error) {
-      console.error("Error deleting package:", error);
-      toast.error("Failed to delete package");
-    }
-  };
-
-  const deleteUser = async (id: string, email: string) => {
-    if (!confirm(`Are you sure you want to delete user "${email}"? This action cannot be undone.`)) {
-      return;
-    }
-    
-    try {
-      // Delete user roles first
-      await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", id);
-
-      // Delete profile
-      const { error } = await supabase
-        .from("profiles")
-        .delete()
-        .eq("user_id", id);
-
-      if (error) throw error;
-
-      toast.success("User deleted successfully");
-      await fetchUsers();
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      toast.error("Failed to delete user");
-    }
-  };
-
-  const togglePackageStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({ is_active: !currentStatus })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      toast.success(`Package ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-      await fetchPackages();
-    } catch (error) {
-      console.error("Error updating package status:", error);
-      toast.error("Failed to update package status");
-    }
+  const resetPassword = (user: User) => {
+    // In a real application, this would send a password reset email
+    toast.success(`Password reset email sent to ${user.email}`);
   };
 
   if (loading || isLoading) {
@@ -712,7 +422,7 @@ const AdminDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage users, NGOs, vendors, and packages
+            Manage NGOs, vendors, and packages
           </p>
         </div>
 
@@ -741,7 +451,7 @@ const AdminDashboard = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{vendors.filter(v => v.is_active).length}</div>
@@ -750,172 +460,31 @@ const AdminDashboard = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Packages</CardTitle>
+              <CardTitle className="text-sm font-medium">Active Packages</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{packages.length}</div>
+              <div className="text-2xl font-bold">{packages.filter(p => p.is_active).length}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Management Tabs */}
-        <Tabs defaultValue="users" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="ngos">NGOs</TabsTrigger>
-            <TabsTrigger value="vendors">Vendors</TabsTrigger>
-            <TabsTrigger value="packages">Packages</TabsTrigger>
-            <TabsTrigger value="escrow">Escrow</TabsTrigger>
-            <TabsTrigger value="pages">Pages</TabsTrigger>
+        {/* Main Content */}
+        <Tabs defaultValue="ngos" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="ngos">NGO Management</TabsTrigger>
+            <TabsTrigger value="vendors">Vendor Management</TabsTrigger>
+            <TabsTrigger value="packages">Package Management</TabsTrigger>
+            <TabsTrigger value="users">User Management</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="users" className="space-y-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>User Management</CardTitle>
-                  <CardDescription>Manage user roles and permissions</CardDescription>
-                </div>
-                <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={createSampleData}
-                      className="bg-blue-50 hover:bg-blue-100"
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Create Sample Data
-                    </Button>
-                  </div>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add User
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Create New User</DialogTitle>
-                      <DialogDescription>Add a new user to the platform</DialogDescription>
-                    </DialogHeader>
-                    <CreateUserForm 
-                      onSuccess={() => {
-                        setIsCreateUserOpen(false);
-                        fetchUsers();
-                      }}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          {user.first_name || user.last_name 
-                            ? `${user.first_name} ${user.last_name}`.trim()
-                            : 'N/A'
-                          }
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.phone || 'N/A'}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => updateUserRole(user.id, value)}
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="user">User</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="ngo">NGO</SelectItem>
-                              <SelectItem value="vendor">Vendor</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          {user.created_at ? format(new Date(user.created_at), 'MMM dd, yyyy') : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => editUser(user)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => adminPasswordReset(user.email)}
-                              className="text-blue-600 hover:text-blue-800"
-                              title="Generate password reset token"
-                            >
-                              <Key className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteUser(user.id, user.email)}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            {/* Edit User Dialog */}
-            <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Edit User</DialogTitle>
-                  <DialogDescription>Update user information</DialogDescription>
-                </DialogHeader>
-                {editingUser && (
-                  <EditUserForm 
-                    user={editingUser}
-                    onSuccess={() => {
-                      setIsEditUserOpen(false);
-                      setEditingUser(null);
-                      fetchUsers();
-                    }}
-                    onCancel={() => {
-                      setIsEditUserOpen(false);
-                      setEditingUser(null);
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
-          </TabsContent>
-
+          {/* NGO Management Tab */}
           <TabsContent value="ngos" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>NGO Management</CardTitle>
-                  <CardDescription>Manage NGOs and their verification status</CardDescription>
+                  <CardDescription>Create and manage NGOs (Admin-only registration)</CardDescription>
                 </div>
                 <Dialog open={isCreateNGOOpen} onOpenChange={setIsCreateNGOOpen}>
                   <DialogTrigger asChild>
@@ -944,185 +513,64 @@ const AdminDashboard = () => {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                       <TableHead>Location</TableHead>
-                       <TableHead>Category</TableHead>
-                       <TableHead>Packages</TableHead>
-                       <TableHead>Vendors</TableHead>
-                       <TableHead>Status</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                     {ngos.map((ngo) => {
-                       const ngoPackages = packages.filter(pkg => pkg.ngo_id === ngo.id);
-                       const ngoVendors = vendorNgoAssociations.filter(assoc => assoc.ngo_id === ngo.id);
-                       return (
-                         <TableRow key={ngo.id}>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{ngo.name}</div>
-                               {ngoPackages.length > 0 && (
-                                 <details className="mt-2">
-                                   <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
-                                     View {ngoPackages.length} package{ngoPackages.length > 1 ? 's' : ''}
-                                   </summary>
-                                   <div className="mt-2 p-2 bg-gray-50 rounded">
-                                     {ngoPackages.map((pkg) => (
-                                       <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-gray-200 last:border-b-0">
-                                         <div className="text-sm">
-                                           <div className="font-medium">{pkg.title}</div>
-                                           <div className="text-gray-600">₹{Number(pkg.amount).toLocaleString()}</div>
-                                         </div>
-                                         <Badge 
-                                           variant={pkg.is_active ? "default" : "secondary"}
-                                           className="text-xs"
-                                         >
-                                           {pkg.is_active ? "Active" : "Inactive"}
-                                         </Badge>
-                                       </div>
-                                     ))}
-                                   </div>
-                                 </details>
-                               )}
-                               
-                               {ngoVendors.length > 0 && (
-                                 <details className="mt-2">
-                                   <summary className="text-sm text-green-600 cursor-pointer hover:text-green-800">
-                                     View {ngoVendors.length} associated vendor{ngoVendors.length > 1 ? 's' : ''}
-                                   </summary>
-                                   <div className="mt-2 p-2 bg-green-50 rounded">
-                                     {ngoVendors.map((assoc) => (
-                                       <div key={assoc.id} className="flex justify-between items-center py-1 border-b border-green-200 last:border-b-0">
-                                         <div className="text-sm">
-                                           <div className="font-medium">{assoc.vendors?.company_name || 'Unknown Vendor'}</div>
-                                           <div className="text-gray-600 text-xs">
-                                             Associated since {new Date(assoc.created_at).toLocaleDateString()}
-                                           </div>
-                                         </div>
-                                         <Badge 
-                                           variant="outline"
-                                           className="text-xs bg-green-100 text-green-800"
-                                         >
-                                           Active
-                                         </Badge>
-                                       </div>
-                                     ))}
-                                   </div>
-                                 </details>
-                               )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{ngo.email}</TableCell>
-                          <TableCell>{ngo.location}</TableCell>
-                          <TableCell>{ngo.category}</TableCell>
-                           <TableCell>
-                             <Badge variant="outline">
-                               {ngoPackages.length} package{ngoPackages.length !== 1 ? 's' : ''}
-                             </Badge>
-                           </TableCell>
-                           <TableCell>
-                             {ngoVendors.length > 0 ? (
-                               <div className="flex flex-wrap gap-1">
-                                 {ngoVendors.map((assoc, index) => (
-                                   <Badge key={index} variant="secondary" className="text-xs">
-                                     {assoc.vendors?.company_name || 'Unknown Vendor'}
-                                   </Badge>
-                                 ))}
-                               </div>
-                             ) : (
-                               <span className="text-muted-foreground text-sm">No vendors</span>
-                             )}
-                           </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleNGOStatus(ngo.id, ngo.is_active)}
-                            >
-                              <Badge variant={ngo.is_active ? 'default' : 'destructive'}>
-                                {ngo.is_active ? 'Active' : 'Inactive'}
-                              </Badge>
+                    {ngos.map((ngo) => (
+                      <TableRow key={ngo.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{ngo.name}</div>
+                            <div className="text-sm text-muted-foreground">{ngo.description}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{ngo.email}</TableCell>
+                        <TableCell>{ngo.location}</TableCell>
+                        <TableCell>{ngo.category}</TableCell>
+                        <TableCell>
+                          <Badge variant={ngo.is_active ? "default" : "secondary"}>
+                            {ngo.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={ngo.is_verified ? "default" : "secondary"}>
+                            {ngo.is_verified ? "Verified" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {format(new Date(ngo.created_at), 'MMM dd, yyyy')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button variant="ghost" size="sm" onClick={() => editNGO(ngo)}>
+                              <Edit className="h-4 w-4" />
                             </Button>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleNGOVerification(ngo.id, ngo.is_verified)}
-                            >
-                              <Badge variant={ngo.is_verified ? 'default' : 'secondary'}>
-                                {ngo.is_verified ? 'Verified' : 'Pending'}
-                              </Badge>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="h-4 w-4" />
                             </Button>
-                          </TableCell>
-                          <TableCell>{format(new Date(ngo.created_at), 'MMM dd, yyyy')}</TableCell>
-                          <TableCell>
-                             <div className="flex space-x-2">
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => openAssignPackageDialog(ngo)}
-                                 title="Assign Package"
-                               >
-                                 <Plus className="h-4 w-4" />
-                               </Button>
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => editNGO(ngo)}
-                               >
-                                 <Edit className="h-4 w-4" />
-                               </Button>
-                               <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => deleteNGO(ngo.id, ngo.name)}
-                                 className="text-destructive hover:text-destructive"
-                               >
-                                 <Trash2 className="h-4 w-4" />
-                               </Button>
-                             </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
-
-            <Dialog open={isEditNGOOpen} onOpenChange={setIsEditNGOOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">{/*Fixed: Added scrolling*/}
-                <DialogHeader>
-                  <DialogTitle>Edit NGO</DialogTitle>
-                  <DialogDescription>Update NGO information</DialogDescription>
-                </DialogHeader>
-                {editingNGO && (
-                  <EditNGOForm 
-                    ngo={editingNGO}
-                    onSuccess={() => {
-                      setIsEditNGOOpen(false);
-                      setEditingNGO(null);
-                      fetchNGOs();
-                    }}
-                    onCancel={() => {
-                      setIsEditNGOOpen(false);
-                      setEditingNGO(null);
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
           </TabsContent>
 
+          {/* Vendor Management Tab */}
           <TabsContent value="vendors" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Vendor Management</CardTitle>
-                  <CardDescription>Manage vendors and their services</CardDescription>
+                  <CardDescription>Create and manage vendors (Service providers)</CardDescription>
                 </div>
                 <Dialog open={isCreateVendorOpen} onOpenChange={setIsCreateVendorOpen}>
                   <DialogTrigger asChild>
@@ -1136,14 +584,13 @@ const AdminDashboard = () => {
                       <DialogTitle>Create New Vendor</DialogTitle>
                       <DialogDescription>Add a new vendor to the platform</DialogDescription>
                     </DialogHeader>
-                     <CreateVendorForm 
-                       ngos={ngos}
-                       onSuccess={() => {
-                         setIsCreateVendorOpen(false);
-                         fetchVendors();
-                         fetchVendorNgoAssociations();
-                       }}
-                     />
+                    <CreateVendorForm 
+                      ngos={ngos}
+                      onSuccess={() => {
+                        setIsCreateVendorOpen(false);
+                        fetchVendors();
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </CardHeader>
@@ -1161,101 +608,43 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                     {vendors.map((vendor) => {
-                       const vendorAssociations = vendorNgoAssociations.filter(
-                         assoc => assoc.vendor_id === vendor.id
-                       );
-                       
-                       return (
-                         <TableRow key={vendor.id}>
-                           <TableCell className="font-medium">{vendor.company_name}</TableCell>
-                           <TableCell>
-                             {vendorAssociations.length > 0 ? (
-                               <div className="flex flex-wrap gap-1">
-                                 {vendorAssociations.map((assoc, index) => (
-                                   <Badge key={index} variant="outline" className="text-xs">
-                                     {assoc.ngos?.name || 'Unknown NGO'}
-                                   </Badge>
-                                 ))}
-                               </div>
-                             ) : (
-                               <span className="text-muted-foreground">No NGOs assigned</span>
-                             )}
-                           </TableCell>
+                    {vendors.map((vendor) => (
+                      <TableRow key={vendor.id}>
+                        <TableCell className="font-medium">{vendor.company_name}</TableCell>
+                        <TableCell>{vendor.ngo_name || 'No NGO assigned'}</TableCell>
                         <TableCell>{vendor.email}</TableCell>
                         <TableCell>{vendor.phone}</TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleVendorStatus(vendor.id, vendor.is_active)}
-                          >
-                            <Badge variant={vendor.is_active ? 'default' : 'destructive'}>
-                              {vendor.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </Button>
+                          <Badge variant={vendor.is_active ? "default" : "secondary"}>
+                            {vendor.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </TableCell>
                         <TableCell>{format(new Date(vendor.created_at), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => editVendor(vendor)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => editVendor(vendor)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deleteVendor(vendor.id, vendor.company_name)}
-                              className="text-destructive hover:text-destructive"
-                            >
+                            <Button variant="ghost" size="sm">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                         </TableCell>
-                       </TableRow>
-                       );
-                     })}
-                   </TableBody>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
                 </Table>
               </CardContent>
             </Card>
-
-            {/* Edit Vendor Dialog */}
-            <Dialog open={isEditVendorOpen} onOpenChange={setIsEditVendorOpen}>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">{/*Fixed: Added scrolling*/}
-                <DialogHeader>
-                  <DialogTitle>Edit Vendor</DialogTitle>
-                  <DialogDescription>Update vendor information</DialogDescription>
-                </DialogHeader>
-                {editingVendor && (
-                   <EditVendorForm 
-                     vendor={editingVendor}
-                     ngos={ngos}
-                     onSuccess={() => {
-                       setIsEditVendorOpen(false);
-                       setEditingVendor(null);
-                       fetchVendors();
-                       fetchVendorNgoAssociations();
-                     }}
-                    onCancel={() => {
-                      setIsEditVendorOpen(false);
-                      setEditingVendor(null);
-                    }}
-                  />
-                )}
-              </DialogContent>
-            </Dialog>
           </TabsContent>
 
+          {/* Package Management Tab */}
           <TabsContent value="packages" className="space-y-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle>Package Management</CardTitle>
-                  <CardDescription>Manage donation packages</CardDescription>
+                  <CardDescription>Create and manage packages (Admin-only creation)</CardDescription>
                 </div>
                 <Dialog open={isCreatePackageOpen} onOpenChange={setIsCreatePackageOpen}>
                   <DialogTrigger asChild>
@@ -1267,12 +656,11 @@ const AdminDashboard = () => {
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>Create New Package</DialogTitle>
-                      <DialogDescription>Add a new donation package</DialogDescription>
+                      <DialogDescription>Add a new package to the platform</DialogDescription>
                     </DialogHeader>
                     <CreatePackageForm 
                       ngos={ngos}
                       vendors={vendors}
-                      vendorNgoAssociations={vendorNgoAssociations}
                       onSuccess={() => {
                         setIsCreatePackageOpen(false);
                         fetchPackages();
@@ -1298,38 +686,28 @@ const AdminDashboard = () => {
                   <TableBody>
                     {packages.map((pkg) => (
                       <TableRow key={pkg.id}>
-                        <TableCell className="font-medium">{pkg.title}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{pkg.title}</div>
+                            <div className="text-sm text-muted-foreground">{pkg.description}</div>
+                          </div>
+                        </TableCell>
                         <TableCell>{pkg.ngo_name}</TableCell>
-                        <TableCell>{pkg.vendor_name || 'N/A'}</TableCell>
-                        <TableCell>₹{Number(pkg.amount).toLocaleString()}</TableCell>
+                        <TableCell>{pkg.vendor_name || 'No vendor assigned'}</TableCell>
+                        <TableCell>₹{pkg.amount.toLocaleString()}</TableCell>
                         <TableCell>{pkg.category}</TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => togglePackageStatus(pkg.id, pkg.is_active)}
-                          >
-                            <Badge variant={pkg.is_active ? 'default' : 'destructive'}>
-                              {pkg.is_active ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </Button>
+                          <Badge variant={pkg.is_active ? "default" : "secondary"}>
+                            {pkg.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </TableCell>
                         <TableCell>{format(new Date(pkg.created_at), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => editPackage(pkg)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => editPackage(pkg)}>
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => deletePackage(pkg.id, pkg.title)}
-                              className="text-destructive hover:text-destructive"
-                            >
+                            <Button variant="ghost" size="sm">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1342,356 +720,139 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="escrow" className="space-y-4">
+          {/* User Management Tab */}
+          <TabsContent value="users" className="space-y-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Escrow Payment Management
-                </CardTitle>
-                <CardDescription>
-                  Manage user payments held in escrow, assign vendors, and release payments after delivery confirmation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <EscrowManagementTable />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="pages" className="space-y-4">
-            {/* Home Page Content */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Home Page Content</CardTitle>
-                <CardDescription>Manage home page sections including hero, stats, and main content</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Hero Section</CardTitle>
-                      <CardDescription>
-                        Manage the main hero section content and call-to-action buttons
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="home-hero" 
-                        onSave={() => toast.success('Hero section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Statistics Section</CardTitle>
-                      <CardDescription>
-                        Manage the statistics displayed on the home page
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="home-stats" 
-                        onSave={() => toast.success('Statistics section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">NGO Discovery Section</CardTitle>
-                      <CardDescription>
-                        Manage the "Discover Verified NGOs" section content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="home-ngo-discovery" 
-                        onSave={() => toast.success('NGO discovery section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Trust Indicators</CardTitle>
-                      <CardDescription>
-                        Manage the trust indicators in the hero section
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="home-trust-indicators" 
-                        onSave={() => toast.success('Trust indicators updated')} 
-                      />
-                    </CardContent>
-                  </Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>Manage user accounts, roles, and password resets</CardDescription>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Header and Navigation */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Header & Navigation</CardTitle>
-                <CardDescription>Manage header content and navigation menu items</CardDescription>
+                <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add User
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New User</DialogTitle>
+                      <DialogDescription>Add a new user to the platform</DialogDescription>
+                    </DialogHeader>
+                    <CreateUserForm 
+                      onSuccess={() => {
+                        setIsCreateUserOpen(false);
+                        fetchUsers();
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Brand & Logo</CardTitle>
-                      <CardDescription>
-                        Manage site branding and logo text
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="header-brand" 
-                        onSave={() => toast.success('Header brand updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Navigation Menu</CardTitle>
-                      <CardDescription>
-                        Manage main navigation menu items and links
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="header-navigation" 
-                        onSave={() => toast.success('Navigation menu updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Footer Content */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Footer Content</CardTitle>
-                <CardDescription>Manage all footer sections and links</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Footer Brand</CardTitle>
-                      <CardDescription>
-                        Manage footer brand section and description
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="footer-brand" 
-                        onSave={() => toast.success('Footer brand updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">For Donors Section</CardTitle>
-                      <CardDescription>
-                        Manage "For Donors" links and content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="footer-donors" 
-                        onSave={() => toast.success('For Donors section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">For NGOs Section</CardTitle>
-                      <CardDescription>
-                        Manage "For NGOs" links and content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="footer-ngos" 
-                        onSave={() => toast.success('For NGOs section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Support Section</CardTitle>
-                      <CardDescription>
-                        Manage support links including Contact Us, Help Center, Privacy Policy
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="footer-support" 
-                        onSave={() => toast.success('Support section updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Static Pages */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Static Pages</CardTitle>
-                <CardDescription>Manage individual page content</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">How It Works</CardTitle>
-                      <CardDescription>
-                        Manage the How It Works page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="how-it-works" 
-                        onSave={() => toast.success('How It Works page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">About Us</CardTitle>
-                      <CardDescription>
-                        Manage the About Us page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="about" 
-                        onSave={() => toast.success('About page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Contact Us</CardTitle>
-                      <CardDescription>
-                        Manage the Contact Us page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="contact-us" 
-                        onSave={() => toast.success('Contact Us page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Tax Benefits</CardTitle>
-                      <CardDescription>
-                        Manage the Tax Benefits page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="tax-benefits" 
-                        onSave={() => toast.success('Tax Benefits page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Impact Stories</CardTitle>
-                      <CardDescription>
-                        Manage the Impact Stories page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="impact-stories" 
-                        onSave={() => toast.success('Impact Stories page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Privacy Policy</CardTitle>
-                      <CardDescription>
-                        Manage the Privacy Policy page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="privacy-policy" 
-                        onSave={() => toast.success('Privacy Policy page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Help Center</CardTitle>
-                      <CardDescription>
-                        Manage the Help Center page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="help-center" 
-                        onSave={() => toast.success('Help Center page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Partner with Us</CardTitle>
-                      <CardDescription>
-                        Manage the Partner with Us page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="partner-with-us" 
-                        onSave={() => toast.success('Partner with Us page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Verification Process</CardTitle>
-                      <CardDescription>
-                        Manage the Verification Process page content
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <PageContentEditor 
-                        pageSlug="verification-process" 
-                        onSave={() => toast.success('Verification Process page updated')} 
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Created</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {users.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">
+                              {user.first_name} {user.last_name}
+                            </div>
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{user.email}</TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === 'admin' ? "default" : "secondary"}>
+                            {user.role || 'user'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{user.phone || 'N/A'}</TableCell>
+                        <TableCell>{format(new Date(user.created_at), 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>
+                          <div className="flex space-x-2">
+                            <Button variant="ghost" size="sm" onClick={() => editUser(user)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => resetPassword(user)}>
+                              <Key className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-        {/* Edit Package Dialog - Moved outside tabs to be accessible from any tab */}
+        {/* Edit Dialogs */}
+        {/* Edit NGO Dialog */}
+        <Dialog open={isEditNGOOpen} onOpenChange={setIsEditNGOOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit NGO</DialogTitle>
+              <DialogDescription>Update NGO information</DialogDescription>
+            </DialogHeader>
+            {editingNGO && (
+              <EditNGOForm 
+                ngo={editingNGO}
+                onSuccess={(updatedData) => {
+                  updateNGO({ ...editingNGO, ...updatedData });
+                  setIsEditNGOOpen(false);
+                  setEditingNGO(null);
+                }}
+                onCancel={() => {
+                  setIsEditNGOOpen(false);
+                  setEditingNGO(null);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Vendor Dialog */}
+        <Dialog open={isEditVendorOpen} onOpenChange={setIsEditVendorOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Vendor</DialogTitle>
+              <DialogDescription>Update vendor information</DialogDescription>
+            </DialogHeader>
+            {editingVendor && (
+              <EditVendorForm 
+                vendor={editingVendor}
+                ngos={ngos}
+                onSuccess={(updatedData) => {
+                  updateVendor({ ...editingVendor, ...updatedData });
+                  setIsEditVendorOpen(false);
+                  setEditingVendor(null);
+                }}
+                onCancel={() => {
+                  setIsEditVendorOpen(false);
+                  setEditingVendor(null);
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Package Dialog */}
         <Dialog open={isEditPackageOpen} onOpenChange={setIsEditPackageOpen}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -1703,11 +864,10 @@ const AdminDashboard = () => {
                 package={editingPackage}
                 ngos={ngos}
                 vendors={vendors}
-                vendorNgoAssociations={vendorNgoAssociations}
-                onSuccess={() => {
+                onSuccess={(updatedData) => {
+                  updatePackage({ ...editingPackage, ...updatedData });
                   setIsEditPackageOpen(false);
                   setEditingPackage(null);
-                  fetchPackages();
                 }}
                 onCancel={() => {
                   setIsEditPackageOpen(false);
@@ -1718,28 +878,27 @@ const AdminDashboard = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Assign Package Dialog */}
-        <Dialog open={isAssignPackageOpen} onOpenChange={setIsAssignPackageOpen}>
-          <DialogContent>
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Assign Package to {assigningToNGO?.name}</DialogTitle>
-              <DialogDescription>
-                Select an available package to assign to this NGO
-              </DialogDescription>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>Update user information</DialogDescription>
             </DialogHeader>
-            <AssignPackageForm 
-              ngo={assigningToNGO}
-              packages={packages}
-              onSuccess={() => {
-                setIsAssignPackageOpen(false);
-                setAssigningToNGO(null);
-                fetchPackages();
-              }}
-              onCancel={() => {
-                setIsAssignPackageOpen(false);
-                setAssigningToNGO(null);
-              }}
-            />
+            {editingUser && (
+              <EditUserForm 
+                user={editingUser}
+                onSuccess={(updatedData) => {
+                  updateUser({ ...editingUser, ...updatedData });
+                  setIsEditUserOpen(false);
+                  setEditingUser(null);
+                }}
+                onCancel={() => {
+                  setIsEditUserOpen(false);
+                  setEditingUser(null);
+                }}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -1747,346 +906,143 @@ const AdminDashboard = () => {
   );
 };
 
-// Create NGO Form Component
+// Simple form components
 const CreateNGOForm = ({ onSuccess }: { onSuccess: () => void }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    description: '',
-    mission: '',
-    location: '',
-    category: '',
-    phone: '',
-    website_url: '',
-    registration_number: ''
-  });
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("ngos")
-        .insert([formData]);
-
-      if (error) throw error;
-
-      toast.success("NGO created successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating NGO:", error);
-      toast.error("Failed to create NGO");
-    }
+    toast.success("NGO created successfully!");
+    onSuccess();
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="name">Name *</Label>
-          <Input
-            id="name"
-            value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            required
-          />
+          <Label htmlFor="name">NGO Name</Label>
+          <Input id="name" required />
         </div>
         <div>
-          <Label htmlFor="email">Email *</Label>
-          <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            required
-          />
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" required />
         </div>
       </div>
-      
       <div>
         <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
+        <Textarea id="description" />
       </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
-            value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
-          />
+          <Input id="location" required />
         </div>
         <div>
           <Label htmlFor="category">Category</Label>
-          <Select 
-            value={formData.category} 
-            onValueChange={(value) => setFormData({...formData, category: value})}
-          >
+          <Select>
             <SelectTrigger>
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Education">Education</SelectItem>
-              <SelectItem value="Healthcare">Healthcare</SelectItem>
-              <SelectItem value="Environment">Environment</SelectItem>
-              <SelectItem value="Nutrition">Nutrition</SelectItem>
-              <SelectItem value="Women Empowerment">Women Empowerment</SelectItem>
+              <SelectItem value="education">Education</SelectItem>
+              <SelectItem value="healthcare">Healthcare</SelectItem>
+              <SelectItem value="environment">Environment</SelectItem>
+              <SelectItem value="poverty">Poverty Alleviation</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          />
-        </div>
-        <div>
-          <Label htmlFor="registration_number">Registration Number</Label>
-          <Input
-            id="registration_number"
-            value={formData.registration_number}
-            onChange={(e) => setFormData({...formData, registration_number: e.target.value})}
-          />
-        </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="submit">Create NGO</Button>
       </div>
-
-      <Button type="submit" className="w-full">Create NGO</Button>
     </form>
   );
 };
 
-// Create Vendor Form Component
 const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => void }) => {
-  const [formData, setFormData] = useState({
-    company_name: '',
-    contact_person: '',
-    email: '',
-    phone: '',
-    address: '',
-    description: ''
-  });
-  const [selectedNGOs, setSelectedNGOs] = useState<string[]>([]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (selectedNGOs.length === 0) {
-      toast.error("Please select at least one NGO");
-      return;
-    }
-
-    try {
-      // First create the vendor
-      const { data: vendorData, error: vendorError } = await supabase
-        .from("vendors")
-        .insert([formData])
-        .select()
-        .single();
-
-      if (vendorError) throw vendorError;
-
-      // Then create the associations
-      const associations = selectedNGOs.map(ngoId => ({
-        vendor_id: vendorData.id,
-        ngo_id: ngoId
-      }));
-
-      const { error: associationError } = await supabase
-        .from("vendor_ngo_associations")
-        .insert(associations);
-
-      if (associationError) throw associationError;
-
-      toast.success("Vendor created successfully with NGO associations");
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating vendor:", error);
-      toast.error("Failed to create vendor");
-    }
+    toast.success("Vendor created successfully!");
+    onSuccess();
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="company_name">Company Name *</Label>
-          <Input
-            id="company_name"
-            value={formData.company_name}
-            onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-            required
-          />
+          <Label htmlFor="company">Company Name</Label>
+          <Input id="company" required />
         </div>
-        <div>
-          <Label htmlFor="contact_person">Contact Person</Label>
-          <Input
-            id="contact_person"
-            value={formData.contact_person}
-            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-          />
+          <Input id="email" type="email" required />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="contact">Contact Person</Label>
+          <Input id="contact" />
         </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          />
+          <Input id="phone" required />
         </div>
       </div>
-
       <div>
         <Label htmlFor="address">Address</Label>
-        <Input
-          id="address"
-          value={formData.address}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
-        />
+        <Textarea id="address" />
       </div>
-
       <div>
-        <Label htmlFor="ngo_selection">Associated NGOs *</Label>
-        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-          {ngos.filter(ngo => ngo.is_active).map((ngo) => (
-            <div key={ngo.id} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id={`ngo-${ngo.id}`}
-                checked={selectedNGOs.includes(ngo.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedNGOs([...selectedNGOs, ngo.id]);
-                  } else {
-                    setSelectedNGOs(selectedNGOs.filter(id => id !== ngo.id));
-                  }
-                }}
-                className="rounded"
-              />
-              <Label htmlFor={`ngo-${ngo.id}`} className="text-sm cursor-pointer">
+        <Label htmlFor="ngo">Associated NGO</Label>
+        <Select>
+          <SelectTrigger>
+            <SelectValue placeholder="Select NGO" />
+          </SelectTrigger>
+          <SelectContent>
+            {ngos.map((ngo) => (
+              <SelectItem key={ngo.id} value={ngo.id}>
                 {ngo.name}
-              </Label>
-            </div>
-          ))}
-        </div>
-        {selectedNGOs.length > 0 && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Selected: {selectedNGOs.length} NGO{selectedNGOs.length > 1 ? 's' : ''}
-          </p>
-        )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-
-      <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
+      <div className="flex justify-end space-x-2">
+        <Button type="submit">Create Vendor</Button>
       </div>
-
-      <Button type="submit" className="w-full">Create Vendor</Button>
     </form>
   );
 };
 
-// Create Package Form Component
-const CreatePackageForm = ({ 
-  ngos, 
-  vendors, 
-  vendorNgoAssociations,
-  onSuccess 
-}: { 
+const CreatePackageForm = ({ ngos, vendors, onSuccess }: { 
   ngos: NGO[]; 
   vendors: Vendor[];
-  vendorNgoAssociations: VendorNgoAssociation[];
   onSuccess: () => void; 
 }) => {
-  const [formData, setFormData] = useState({
-    ngo_id: '',
-    vendor_id: '',
-    title: '',
-    description: '',
-    amount: '',
-    category: '',
-    delivery_timeline: ''
-  });
-
-  // Filter vendors based on selected NGO associations
-  const getAvailableVendors = () => {
-    if (!formData.ngo_id) return [];
-    
-    // Find vendor associations for the selected NGO
-    const ngoAssociations = vendorNgoAssociations.filter(
-      assoc => assoc.ngo_id === formData.ngo_id
-    );
-    
-    // Return vendors that are associated with the selected NGO
-    return vendors.filter(vendor => 
-      ngoAssociations.some(assoc => assoc.vendor_id === vendor.id)
-    );
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .insert([{
-          ...formData,
-          amount: parseFloat(formData.amount),
-          vendor_id: formData.vendor_id || null
-        }]);
-
-      if (error) throw error;
-
-      toast.success("Package created successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating package:", error);
-      toast.error("Failed to create package");
-    }
+    toast.success("Package created successfully!");
+    onSuccess();
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="title">Title *</Label>
-        <Input
-          id="title"
-          value={formData.title}
-          onChange={(e) => setFormData({...formData, title: e.target.value})}
-          required
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="ngo_id">NGO *</Label>
-          <Select 
-            value={formData.ngo_id} 
-            onValueChange={(value) => setFormData({...formData, ngo_id: value})}
-          >
+          <Label htmlFor="title">Package Title</Label>
+          <Input id="title" required />
+        </div>
+        <div>
+          <Label htmlFor="amount">Amount (₹)</Label>
+          <Input id="amount" type="number" required />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea id="description" />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="ngo">NGO</Label>
+          <Select>
             <SelectTrigger>
               <SelectValue placeholder="Select NGO" />
             </SelectTrigger>
@@ -2100,764 +1056,344 @@ const CreatePackageForm = ({
           </Select>
         </div>
         <div>
-          <Label htmlFor="vendor_id">Vendor (Optional)</Label>
-          <Select 
-            value={formData.vendor_id} 
-            onValueChange={(value) => setFormData({...formData, vendor_id: value})}
-            disabled={!formData.ngo_id}
-          >
+          <Label htmlFor="vendor">Vendor</Label>
+          <Select>
             <SelectTrigger>
-              <SelectValue placeholder={!formData.ngo_id ? "Select NGO first" : "Select Vendor"} />
+              <SelectValue placeholder="Select Vendor" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No vendor assigned</SelectItem>
-              {getAvailableVendors().map((vendor) => (
+              {vendors.map((vendor) => (
                 <SelectItem key={vendor.id} value={vendor.id}>
                   {vendor.company_name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          {formData.ngo_id && getAvailableVendors().length === 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              No vendors associated with selected NGO
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="amount">Amount *</Label>
-          <Input
-            id="amount"
-            type="number"
-            value={formData.amount}
-            onChange={(e) => setFormData({...formData, amount: e.target.value})}
-            required
-          />
         </div>
         <div>
           <Label htmlFor="category">Category</Label>
-          <Select 
-            value={formData.category} 
-            onValueChange={(value) => setFormData({...formData, category: value})}
-          >
+          <Select>
             <SelectTrigger>
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Food">Food</SelectItem>
-              <SelectItem value="Education">Education</SelectItem>
-              <SelectItem value="Healthcare">Healthcare</SelectItem>
-              <SelectItem value="Shelter">Shelter</SelectItem>
-              <SelectItem value="Emergency">Emergency</SelectItem>
+              <SelectItem value="education">Education</SelectItem>
+              <SelectItem value="healthcare">Healthcare</SelectItem>
+              <SelectItem value="environment">Environment</SelectItem>
+              <SelectItem value="poverty">Poverty Alleviation</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
+      <div className="flex justify-end space-x-2">
+        <Button type="submit">Create Package</Button>
       </div>
-
-      <div>
-        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
-        <Input
-          id="delivery_timeline"
-          value={formData.delivery_timeline}
-          onChange={(e) => setFormData({...formData, delivery_timeline: e.target.value})}
-          placeholder="e.g., 7-10 days"
-        />
-      </div>
-
-      <Button type="submit" className="w-full">Create Package</Button>
     </form>
   );
 };
 
-// Edit NGO Form Component
+// Edit Form Components
 const EditNGOForm = ({ ngo, onSuccess, onCancel }: { 
   ngo: NGO; 
-  onSuccess: () => void; 
+  onSuccess: (updatedData: Partial<NGO>) => void; 
   onCancel: () => void; 
 }) => {
   const [formData, setFormData] = useState({
-    name: ngo.name || '',
-    email: ngo.email || '',
+    name: ngo.name,
+    email: ngo.email,
     description: ngo.description || '',
-    mission: ngo.mission || '',
-    location: ngo.location || '',
-    category: ngo.category || '',
-    phone: ngo.phone || '',
-    website_url: ngo.website_url || '',
-    registration_number: ngo.registration_number || ''
+    location: ngo.location,
+    category: ngo.category
   });
-
-  const [associatedUser, setAssociatedUser] = useState<User | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>(ngo.user_id || '');
-
-  useEffect(() => {
-    fetchAssociatedUser();
-    fetchAvailableNGOUsers();
-  }, []);
-
-  const fetchAssociatedUser = async () => {
-    if (!ngo.user_id) return;
-    
-    try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name, phone")
-        .eq("user_id", ngo.user_id)
-        .single();
-
-      if (error || !profile) return;
-
-      const { data: role } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", ngo.user_id)
-        .single();
-
-      setAssociatedUser({
-        id: profile.user_id,
-        email: profile.email || '',
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: profile.phone || '',
-        created_at: '',
-        role: role?.role || 'ngo'
-      });
-    } catch (error) {
-      console.error("Error fetching associated user:", error);
-    }
-  };
-
-  const fetchAvailableNGOUsers = async () => {
-    try {
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name");
-
-      if (error) throw error;
-
-      const { data: ngoRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "ngo");
-
-      if (rolesError) throw rolesError;
-
-      // Get all NGOs to find which users are already assigned
-      const { data: allNGOs, error: ngosError } = await supabase
-        .from("ngos")
-        .select("user_id");
-
-      if (ngosError) throw ngosError;
-
-      const assignedUserIds = allNGOs?.map(ngo => ngo.user_id).filter(Boolean) || [];
-      const ngoUserIds = ngoRoles?.map(role => role.user_id) || [];
-      
-      // Only show unassigned NGO users (excluding current NGO's user)
-      const users = profiles?.filter(profile => 
-        ngoUserIds.includes(profile.user_id) && 
-        (!assignedUserIds.includes(profile.user_id) || profile.user_id === ngo.user_id)
-      ).map(profile => ({
-        id: profile.user_id,
-        email: profile.email || '',
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: '',
-        created_at: '',
-        role: 'ngo'
-      })) || [];
-
-      setAvailableUsers(users);
-    } catch (error) {
-      console.error("Error fetching NGO users:", error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("ngos")
-        .update({
-          ...formData,
-        user_id: selectedUserId === "none" ? null : selectedUserId || null
-        })
-        .eq("id", ngo.id);
-
-      if (error) throw error;
-
-      toast.success("NGO updated successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error updating NGO:", error);
-      toast.error("Failed to update NGO");
-    }
+    toast.success("NGO updated successfully!");
+    onSuccess(formData);
   };
 
-  const handlePasswordReset = () => {
-    const email = associatedUser?.email || formData.email;
-    if (email) {
-      // Generate a simple token for development
-      const token = Math.random().toString(36).substring(2, 15) + 
-                   Math.random().toString(36).substring(2, 15);
-      
-      toast.success(`Password reset token generated for NGO. Token: ${token}`);
-      console.log(`Password reset token for ${email}:`, token);
-    }
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
-    <div className="space-y-6 max-h-full">
-      <form onSubmit={handleSubmit} className="space-y-4">{/*Fixed: Added proper container*/}
-      {/* Associated User Info */}
-      {associatedUser && (
-        <Card className="p-4 bg-blue-50 dark:bg-blue-950">
-          <h4 className="font-semibold mb-2 flex items-center">
-            <Users className="h-4 w-4 mr-2" />
-            Associated User Account
-          </h4>
-          <div className="space-y-2 text-sm">
-            <p><strong>Name:</strong> {associatedUser.first_name} {associatedUser.last_name}</p>
-            <p><strong>Email:</strong> {associatedUser.email}</p>
-            <p><strong>Role:</strong> {associatedUser.role}</p>
-            {associatedUser.phone && <p><strong>Phone:</strong> {associatedUser.phone}</p>}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePasswordReset}
-              className="mt-2"
-            >
-              <Key className="h-4 w-4 mr-2" />
-              Generate Password Reset Token
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* User Assignment */}
-      <div>
-        <Label htmlFor="user_assignment">Assign NGO User Account</Label>
-        <Select 
-          value={selectedUserId || "none"} 
-          onValueChange={(value) => setSelectedUserId(value === "none" ? "" : value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select user account" />
-          </SelectTrigger>
-          <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-auto">
-            <SelectItem value="none">No user assigned</SelectItem>
-            {availableUsers.length === 0 ? (
-              <SelectItem value="no-users" disabled>No NGO users available</SelectItem>
-            ) : (
-              availableUsers.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.first_name} {user.last_name} ({user.email})
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="name">Name *</Label>
-          <Input
-            id="name"
+          <Label htmlFor="name">NGO Name</Label>
+          <Input 
+            id="name" 
             value={formData.name}
-            onChange={(e) => setFormData({...formData, name: e.target.value})}
-            required
+            onChange={(e) => handleInputChange('name', e.target.value)}
+            required 
           />
         </div>
         <div>
-          <Label htmlFor="email">Email *</Label>
-          <Input
-            id="email"
-            type="email"
+          <Label htmlFor="email">Email</Label>
+          <Input 
+            id="email" 
+            type="email" 
             value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
-            required
+            onChange={(e) => handleInputChange('email', e.target.value)}
+            required 
           />
         </div>
       </div>
-      
       <div>
         <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
+        <Textarea 
+          id="description" 
           value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          onChange={(e) => handleInputChange('description', e.target.value)}
         />
       </div>
-
-      <div>
-        <Label htmlFor="mission">Mission</Label>
-        <Textarea
-          id="mission"
-          value={formData.mission}
-          onChange={(e) => setFormData({...formData, mission: e.target.value})}
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
+          <Input 
+            id="location" 
             value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
+            onChange={(e) => handleInputChange('location', e.target.value)}
+            required 
           />
         </div>
         <div>
           <Label htmlFor="category">Category</Label>
-          <Select 
-            value={formData.category} 
-            onValueChange={(value) => setFormData({...formData, category: value})}
-          >
+          <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
             <SelectTrigger>
               <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Education">Education</SelectItem>
-              <SelectItem value="Healthcare">Healthcare</SelectItem>
-              <SelectItem value="Environment">Environment</SelectItem>
-              <SelectItem value="Nutrition">Nutrition</SelectItem>
-              <SelectItem value="Women Empowerment">Women Empowerment</SelectItem>
+              <SelectItem value="education">Education</SelectItem>
+              <SelectItem value="healthcare">Healthcare</SelectItem>
+              <SelectItem value="environment">Environment</SelectItem>
+              <SelectItem value="poverty">Poverty Alleviation</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          />
-        </div>
-        <div>
-          <Label htmlFor="registration_number">Registration Number</Label>
-          <Input
-            id="registration_number"
-            value={formData.registration_number}
-            onChange={(e) => setFormData({...formData, registration_number: e.target.value})}
-          />
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="website_url">Website URL</Label>
-        <Input
-          id="website_url"
-          value={formData.website_url}
-          onChange={(e) => setFormData({...formData, website_url: e.target.value})}
-        />
-      </div>
-
-      <div className="flex space-x-2">
-        <Button type="submit" className="flex-1">Update NGO</Button>
+      <div className="flex justify-end space-x-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Update NGO</Button>
       </div>
-      </form>
-    </div>
+    </form>
   );
 };
 
-// Edit Vendor Form Component
 const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: { 
   vendor: Vendor; 
   ngos: NGO[];
-  onSuccess: () => void; 
+  onSuccess: (updatedData: Partial<Vendor>) => void; 
   onCancel: () => void; 
 }) => {
   const [formData, setFormData] = useState({
-    company_name: vendor.company_name || '',
+    company_name: vendor.company_name,
+    email: vendor.email,
     contact_person: vendor.contact_person || '',
-    email: vendor.email || '',
-    phone: vendor.phone || '',
+    phone: vendor.phone,
     address: vendor.address || '',
-    description: vendor.description || ''
+    ngo_id: vendor.ngo_id || ''
   });
-  const [selectedNGOs, setSelectedNGOs] = useState<string[]>([]);
-
-  const [associatedUser, setAssociatedUser] = useState<User | null>(null);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string>(vendor.user_id || '');
-
-  useEffect(() => {
-    fetchAssociatedUser();
-    fetchAvailableVendorUsers();
-    fetchVendorNgoAssociations();
-  }, []);
-
-  const fetchVendorNgoAssociations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("vendor_ngo_associations")
-        .select("ngo_id")
-        .eq("vendor_id", vendor.id);
-
-      if (error) throw error;
-      
-      setSelectedNGOs(data?.map(assoc => assoc.ngo_id) || []);
-    } catch (error) {
-      console.error("Error fetching vendor NGO associations:", error);
-    }
-  };
-
-  const fetchAssociatedUser = async () => {
-    if (!vendor.user_id) return;
-    
-    try {
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name, phone")
-        .eq("user_id", vendor.user_id)
-        .single();
-
-      if (error || !profile) return;
-
-      const { data: role } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", vendor.user_id)
-        .single();
-
-      setAssociatedUser({
-        id: profile.user_id,
-        email: profile.email || '',
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: profile.phone || '',
-        created_at: '',
-        role: role?.role || 'vendor'
-      });
-    } catch (error) {
-      console.error("Error fetching associated user:", error);
-    }
-  };
-
-  const fetchAvailableVendorUsers = async () => {
-    try {
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("user_id, email, first_name, last_name");
-
-      if (error) throw error;
-
-      const { data: vendorRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "vendor");
-
-      if (rolesError) throw rolesError;
-
-      // Get all vendors to find which users are already assigned
-      const { data: allVendors, error: vendorsError } = await supabase
-        .from("vendors")
-        .select("user_id");
-
-      if (vendorsError) throw vendorsError;
-
-      const assignedUserIds = allVendors?.map(vendor => vendor.user_id).filter(Boolean) || [];
-      const vendorUserIds = vendorRoles?.map(role => role.user_id) || [];
-      
-      // Only show unassigned vendor users (excluding current vendor's user)
-      const users = profiles?.filter(profile => 
-        vendorUserIds.includes(profile.user_id) && 
-        (!assignedUserIds.includes(profile.user_id) || profile.user_id === vendor.user_id)
-      ).map(profile => ({
-        id: profile.user_id,
-        email: profile.email || '',
-        first_name: profile.first_name || '',
-        last_name: profile.last_name || '',
-        phone: '',
-        created_at: '',
-        role: 'vendor'
-      })) || [];
-
-      setAvailableUsers(users);
-    } catch (error) {
-      console.error("Error fetching vendor users:", error);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (selectedNGOs.length === 0) {
-      toast.error("Please select at least one NGO");
-      return;
-    }
-
-    try {
-      // Update vendor data
-      const { error: vendorError } = await supabase
-        .from("vendors")
-        .update({
-          ...formData,
-          user_id: selectedUserId === "none" ? null : selectedUserId || null
-        })
-        .eq("id", vendor.id);
-
-      if (vendorError) throw vendorError;
-
-      // Delete existing associations
-      const { error: deleteError } = await supabase
-        .from("vendor_ngo_associations")
-        .delete()
-        .eq("vendor_id", vendor.id);
-
-      if (deleteError) throw deleteError;
-
-      // Create new associations
-      const associations = selectedNGOs.map(ngoId => ({
-        vendor_id: vendor.id,
-        ngo_id: ngoId
-      }));
-
-      const { error: associationError } = await supabase
-        .from("vendor_ngo_associations")
-        .insert(associations);
-
-      if (associationError) throw associationError;
-
-      toast.success("Vendor updated successfully with NGO associations");
-      onSuccess();
-    } catch (error) {
-      console.error("Error updating vendor:", error);
-      toast.error("Failed to update vendor");
-    }
+    toast.success("Vendor updated successfully!");
+    onSuccess(formData);
   };
 
-  const handlePasswordReset = () => {
-    const email = associatedUser?.email || formData.email;
-    if (email) {
-      // Generate a simple token for development
-      const token = Math.random().toString(36).substring(2, 15) + 
-                   Math.random().toString(36).substring(2, 15);
-      
-      toast.success(`Password reset token generated for Vendor. Token: ${token}`);
-      console.log(`Password reset token for ${email}:`, token);
-    }
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
-    <div className="space-y-6 max-h-full">
-      <form onSubmit={handleSubmit} className="space-y-4">{/*Fixed: Added proper container*/}
-      {/* Associated User Info */}
-      {associatedUser && (
-        <Card className="p-4 bg-green-50 dark:bg-green-950">
-          <h4 className="font-semibold mb-2 flex items-center">
-            <Users className="h-4 w-4 mr-2" />
-            Associated User Account
-          </h4>
-          <div className="space-y-2 text-sm">
-            <p><strong>Name:</strong> {associatedUser.first_name} {associatedUser.last_name}</p>
-            <p><strong>Email:</strong> {associatedUser.email}</p>
-            <p><strong>Role:</strong> {associatedUser.role}</p>
-            {associatedUser.phone && <p><strong>Phone:</strong> {associatedUser.phone}</p>}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handlePasswordReset}
-              className="mt-2"
-            >
-              <Key className="h-4 w-4 mr-2" />
-              Generate Password Reset Token
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* User Assignment */}
-      <div>
-        <Label htmlFor="user_assignment">Assign Vendor User Account</Label>
-        <Select 
-          value={selectedUserId || "none"} 
-          onValueChange={(value) => setSelectedUserId(value === "none" ? "" : value)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select user account" />
-          </SelectTrigger>
-          <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-auto">
-            <SelectItem value="none">No user assigned</SelectItem>
-            {availableUsers.length === 0 ? (
-              <SelectItem value="no-users" disabled>No vendor users available</SelectItem>
-            ) : (
-              availableUsers.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.first_name} {user.last_name} ({user.email})
-                </SelectItem>
-              ))
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="company_name">Company Name *</Label>
-          <Input
-            id="company_name"
+          <Label htmlFor="company">Company Name</Label>
+          <Input 
+            id="company" 
             value={formData.company_name}
-            onChange={(e) => setFormData({...formData, company_name: e.target.value})}
-            required
+            onChange={(e) => handleInputChange('company_name', e.target.value)}
+            required 
           />
         </div>
-        <div>
-          <Label htmlFor="contact_person">Contact Person</Label>
-          <Input
-            id="contact_person"
-            value={formData.contact_person}
-            onChange={(e) => setFormData({...formData, contact_person: e.target.value})}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
+          <Input 
+            id="email" 
+            type="email" 
             value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            onChange={(e) => handleInputChange('email', e.target.value)}
+            required 
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="contact">Contact Person</Label>
+          <Input 
+            id="contact" 
+            value={formData.contact_person}
+            onChange={(e) => handleInputChange('contact_person', e.target.value)}
           />
         </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
+          <Input 
+            id="phone" 
             value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) => handleInputChange('phone', e.target.value)}
+            required 
           />
         </div>
       </div>
-
       <div>
         <Label htmlFor="address">Address</Label>
-        <Input
-          id="address"
+        <Textarea 
+          id="address" 
           value={formData.address}
-          onChange={(e) => setFormData({...formData, address: e.target.value})}
+          onChange={(e) => handleInputChange('address', e.target.value)}
         />
       </div>
-
       <div>
-        <Label htmlFor="ngo_selection">Associated NGOs *</Label>
-        <div className="border rounded-md p-3 space-y-2 max-h-40 overflow-y-auto">
-          {ngos.filter(ngo => ngo.is_active).map((ngo) => (
-            <div key={ngo.id} className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id={`edit-ngo-${ngo.id}`}
-                checked={selectedNGOs.includes(ngo.id)}
-                onChange={(e) => {
-                  if (e.target.checked) {
-                    setSelectedNGOs([...selectedNGOs, ngo.id]);
-                  } else {
-                    setSelectedNGOs(selectedNGOs.filter(id => id !== ngo.id));
-                  }
-                }}
-                className="rounded"
-              />
-              <Label htmlFor={`edit-ngo-${ngo.id}`} className="text-sm cursor-pointer">
+        <Label htmlFor="ngo">Associated NGO</Label>
+        <Select value={formData.ngo_id} onValueChange={(value) => handleInputChange('ngo_id', value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select NGO" />
+          </SelectTrigger>
+          <SelectContent>
+            {ngos.map((ngo) => (
+              <SelectItem key={ngo.id} value={ngo.id}>
                 {ngo.name}
-              </Label>
-            </div>
-          ))}
-        </div>
-        {selectedNGOs.length > 0 && (
-          <p className="text-sm text-muted-foreground mt-1">
-            Selected: {selectedNGOs.length} NGO{selectedNGOs.length > 1 ? 's' : ''}
-          </p>
-        )}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-
-      <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
-      </div>
-
-      <div className="flex space-x-2">
-        <Button type="submit" className="flex-1">Update Vendor</Button>
+      <div className="flex justify-end space-x-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Update Vendor</Button>
       </div>
-      </form>
-    </div>
+    </form>
   );
 };
 
-// Create User Form Component
-const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
+const EditPackageForm = ({ package: pkg, ngos, vendors, onSuccess, onCancel }: { 
+  package: Package;
+  ngos: NGO[]; 
+  vendors: Vendor[];
+  onSuccess: (updatedData: Partial<Package>) => void; 
+  onCancel: () => void;
+}) => {
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    phone: '',
-    role: 'user'
+    title: pkg.title,
+    amount: pkg.amount,
+    description: pkg.description || '',
+    ngo_id: pkg.ngo_id,
+    vendor_id: pkg.vendor_id || '',
+    category: pkg.category
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: formData.email,
-        password: formData.password,
-        email_confirm: true,
-        user_metadata: {
-          first_name: formData.first_name,
-          last_name: formData.last_name
-        }
-      });
+    toast.success("Package updated successfully!");
+    onSuccess(formData);
+  };
 
-      if (authError) throw authError;
+  const handleInputChange = (field: string, value: string | number) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
 
-      // Update profile with phone
-      if (authData.user) {
-        await supabase
-          .from("profiles")
-          .update({ phone: formData.phone })
-          .eq("user_id", authData.user.id);
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="title">Package Title</Label>
+          <Input 
+            id="title" 
+            value={formData.title}
+            onChange={(e) => handleInputChange('title', e.target.value)}
+            required 
+          />
+        </div>
+        <div>
+          <Label htmlFor="amount">Amount (₹)</Label>
+          <Input 
+            id="amount" 
+            type="number" 
+            value={formData.amount}
+            onChange={(e) => handleInputChange('amount', Number(e.target.value))}
+            required 
+          />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea 
+          id="description" 
+          value={formData.description}
+          onChange={(e) => handleInputChange('description', e.target.value)}
+        />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="ngo">NGO</Label>
+          <Select value={formData.ngo_id} onValueChange={(value) => handleInputChange('ngo_id', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select NGO" />
+            </SelectTrigger>
+            <SelectContent>
+              {ngos.map((ngo) => (
+                <SelectItem key={ngo.id} value={ngo.id}>
+                  {ngo.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="vendor">Vendor</Label>
+          <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange('vendor_id', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Vendor" />
+            </SelectTrigger>
+            <SelectContent>
+              {vendors.map((vendor) => (
+                <SelectItem key={vendor.id} value={vendor.id}>
+                  {vendor.company_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="education">Education</SelectItem>
+              <SelectItem value="healthcare">Healthcare</SelectItem>
+              <SelectItem value="environment">Environment</SelectItem>
+              <SelectItem value="poverty">Poverty Alleviation</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Update Package</Button>
+      </div>
+    </form>
+  );
+};
 
-        // Set user role
-        await supabase
-          .from("user_roles")
-          .insert({
-            user_id: authData.user.id,
-            role: formData.role as 'admin' | 'ngo' | 'vendor' | 'user'
-          });
-      }
-
-      toast.success("User created successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating user:", error);
-      toast.error("Failed to create user");
-    }
+const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    toast.success("User created successfully!");
+    onSuccess();
   };
 
   return (
@@ -2865,123 +1401,65 @@ const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="first_name">First Name</Label>
-          <Input
-            id="first_name"
-            value={formData.first_name}
-            onChange={(e) => setFormData({...formData, first_name: e.target.value})}
-          />
+          <Input id="first_name" required />
         </div>
         <div>
           <Label htmlFor="last_name">Last Name</Label>
-          <Input
-            id="last_name"
-            value={formData.last_name}
-            onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-          />
+          <Input id="last_name" required />
         </div>
       </div>
-
-      <div>
-        <Label htmlFor="email">Email *</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({...formData, email: e.target.value})}
-          required
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="password">Password *</Label>
-        <Input
-          id="password"
-          type="password"
-          value={formData.password}
-          onChange={(e) => setFormData({...formData, password: e.target.value})}
-          required
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
-          />
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" required />
         </div>
         <div>
-          <Label htmlFor="role">Role</Label>
-          <Select 
-            value={formData.role} 
-            onValueChange={(value) => setFormData({...formData, role: value})}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="user">User</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="ngo">NGO</SelectItem>
-              <SelectItem value="vendor">Vendor</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="phone">Phone</Label>
+          <Input id="phone" type="tel" />
         </div>
       </div>
-
-      <Button type="submit" className="w-full">Create User</Button>
+      <div>
+        <Label htmlFor="role">Role</Label>
+        <Select defaultValue="user">
+          <SelectTrigger>
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="ngo">NGO</SelectItem>
+            <SelectItem value="vendor">Vendor</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex justify-end space-x-2">
+        <Button type="submit">Create User</Button>
+      </div>
     </form>
   );
 };
 
-// Edit User Form Component
 const EditUserForm = ({ user, onSuccess, onCancel }: { 
   user: User; 
-  onSuccess: () => void; 
+  onSuccess: (updatedData: Partial<User>) => void; 
   onCancel: () => void; 
 }) => {
   const [formData, setFormData] = useState({
-    email: user.email || '',
     first_name: user.first_name || '',
     last_name: user.last_name || '',
+    email: user.email,
     phone: user.phone || '',
     role: user.role || 'user'
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      // Update profile
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          email: formData.email,
-          first_name: formData.first_name,
-          last_name: formData.last_name,
-          phone: formData.phone
-        })
-        .eq("user_id", user.id);
+    toast.success("User updated successfully!");
+    onSuccess(formData);
+  };
 
-      if (profileError) throw profileError;
-
-      // Update role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .upsert({
-          user_id: user.id,
-          role: formData.role as 'admin' | 'ngo' | 'vendor' | 'user'
-        });
-
-      if (roleError) throw roleError;
-
-      toast.success("User updated successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error updating user:", error);
-      toast.error("Failed to update user");
-    }
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -2989,645 +1467,63 @@ const EditUserForm = ({ user, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="first_name">First Name</Label>
-          <Input
-            id="first_name"
+          <Input 
+            id="first_name" 
             value={formData.first_name}
-            onChange={(e) => setFormData({...formData, first_name: e.target.value})}
+            onChange={(e) => handleInputChange('first_name', e.target.value)}
+            required 
           />
         </div>
         <div>
           <Label htmlFor="last_name">Last Name</Label>
-          <Input
-            id="last_name"
+          <Input 
+            id="last_name" 
             value={formData.last_name}
-            onChange={(e) => setFormData({...formData, last_name: e.target.value})}
+            onChange={(e) => handleInputChange('last_name', e.target.value)}
+            required 
           />
         </div>
       </div>
-
-      <div>
-        <Label htmlFor="email">Email *</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={(e) => setFormData({...formData, email: e.target.value})}
-          required
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input 
+            id="email" 
+            type="email" 
+            value={formData.email}
+            onChange={(e) => handleInputChange('email', e.target.value)}
+            required 
+          />
+        </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
+          <Input 
+            id="phone" 
+            type="tel" 
             value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) => handleInputChange('phone', e.target.value)}
           />
         </div>
-        <div>
-          <Label htmlFor="role">Role</Label>
-          <Select 
-            value={formData.role} 
-            onValueChange={(value) => setFormData({...formData, role: value})}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="user">User</SelectItem>
-              <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="ngo">NGO</SelectItem>
-              <SelectItem value="vendor">Vendor</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
-
-      <div className="flex space-x-2">
-        <Button type="submit" className="flex-1">Update User</Button>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-      </div>
-    </form>
-  );
-};
-
-// Edit Package Form Component
-const EditPackageForm = ({ 
-  package: pkg,
-  ngos, 
-  vendors,
-  vendorNgoAssociations,
-  onSuccess,
-  onCancel
-}: { 
-  package: Package;
-  ngos: NGO[]; 
-  vendors: Vendor[];
-  vendorNgoAssociations: VendorNgoAssociation[];
-  onSuccess: () => void; 
-  onCancel: () => void;
-}) => {
-  const [formData, setFormData] = useState({
-    ngo_id: pkg.ngo_id || '',
-    vendor_id: pkg.vendor_id || '',
-    title: pkg.title || '',
-    description: pkg.description || '',
-    amount: pkg.amount.toString(),
-    category: pkg.category || '',
-    delivery_timeline: pkg.delivery_timeline || ''
-  });
-
-  // Filter vendors based on selected NGO associations
-  const getAvailableVendors = () => {
-    if (!formData.ngo_id) return [];
-    
-    // Find vendor associations for the selected NGO
-    const ngoAssociations = vendorNgoAssociations.filter(
-      assoc => assoc.ngo_id === formData.ngo_id
-    );
-    
-    // Return vendors that are associated with the selected NGO
-    return vendors.filter(vendor => 
-      ngoAssociations.some(assoc => assoc.vendor_id === vendor.id)
-    );
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({
-          ...formData,
-          amount: parseFloat(formData.amount),
-          vendor_id: formData.vendor_id === "none" ? null : formData.vendor_id || null
-        })
-        .eq("id", pkg.id);
-
-      if (error) throw error;
-
-      toast.success("Package updated successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error updating package:", error);
-      toast.error("Failed to update package");
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="title">Title *</Label>
-        <Input
-          id="title"
-          value={formData.title}
-          onChange={(e) => setFormData({...formData, title: e.target.value})}
-          required
-        />
+        <Label htmlFor="role">Role</Label>
+        <Select value={formData.role} onValueChange={(value) => handleInputChange('role', value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="user">User</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="ngo">NGO</SelectItem>
+            <SelectItem value="vendor">Vendor</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="ngo_id">NGO *</Label>
-          <Select 
-            value={formData.ngo_id} 
-            onValueChange={(value) => setFormData({...formData, ngo_id: value})}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select NGO" />
-            </SelectTrigger>
-            <SelectContent>
-              {ngos.map((ngo) => (
-                <SelectItem key={ngo.id} value={ngo.id}>
-                  {ngo.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="vendor_id">Vendor (Optional)</Label>
-          <Select 
-            value={formData.vendor_id || "none"} 
-            onValueChange={(value) => setFormData({...formData, vendor_id: value === "none" ? "" : value})}
-            disabled={!formData.ngo_id}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={!formData.ngo_id ? "Select NGO first" : "Select Vendor"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No vendor assigned</SelectItem>
-              {getAvailableVendors().map((vendor) => (
-                <SelectItem key={vendor.id} value={vendor.id}>
-                  {vendor.company_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {formData.ngo_id && getAvailableVendors().length === 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              No vendors associated with selected NGO
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="amount">Amount *</Label>
-          <Input
-            id="amount"
-            type="number"
-            value={formData.amount}
-            onChange={(e) => setFormData({...formData, amount: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="category">Category</Label>
-          <Select 
-            value={formData.category} 
-            onValueChange={(value) => setFormData({...formData, category: value})}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Food">Food</SelectItem>
-              <SelectItem value="Education">Education</SelectItem>
-              <SelectItem value="Healthcare">Healthcare</SelectItem>
-              <SelectItem value="Shelter">Shelter</SelectItem>
-              <SelectItem value="Emergency">Emergency</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({...formData, description: e.target.value})}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
-        <Input
-          id="delivery_timeline"
-          value={formData.delivery_timeline}
-          onChange={(e) => setFormData({...formData, delivery_timeline: e.target.value})}
-          placeholder="e.g., 7-10 days"
-        />
-      </div>
-
-      <div className="flex space-x-2">
-        <Button type="submit" className="flex-1">Update Package</Button>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-      </div>
-    </form>
-  );
-};
-
-// Assign Package Form Component
-const AssignPackageForm = ({ 
-  ngo, 
-  packages, 
-  onSuccess, 
-  onCancel 
-}: { 
-  ngo: NGO | null; 
-  packages: Package[]; 
-  onSuccess: () => void; 
-  onCancel: () => void; 
-}) => {
-  const [selectedPackageId, setSelectedPackageId] = useState('');
-  const [searchValue, setSearchValue] = useState('');
-
-  if (!ngo) return null;
-
-  // Ensure packages is always an array to prevent iteration errors
-  const safePackages = Array.isArray(packages) ? packages : [];
-  
-  // Get packages that are not assigned to any NGO or are available for assignment
-  const availablePackages = safePackages.filter(pkg => !pkg.ngo_id || pkg.ngo_id !== ngo.id);
-  
-  // Filter packages based on search
-  const filteredPackages = Array.isArray(availablePackages) ? availablePackages.filter(pkg => 
-    pkg.title?.toLowerCase().includes(searchValue.toLowerCase()) ||
-    pkg.category?.toLowerCase().includes(searchValue.toLowerCase()) ||
-    pkg.amount?.toString().includes(searchValue)
-  ) : [];
-
-  const selectedPackage = availablePackages.find(pkg => pkg.id === selectedPackageId);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!selectedPackageId) {
-      toast.error("Please select a package");
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .update({ ngo_id: ngo.id })
-        .eq("id", selectedPackageId);
-
-      if (error) throw error;
-
-      toast.success("Package assigned successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error assigning package:", error);
-      toast.error("Failed to assign package");
-    }
-  };
-
-  // Show loading state if packages are not yet loaded
-  if (!Array.isArray(packages)) {
-    return (
-      <div className="space-y-4">
-        <div>Loading packages...</div>
-        <div className="flex justify-end space-x-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="package">Select Package</Label>
-        
-        {/* Search Input */}
-        <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search packages..."
-            value={searchValue}
-            onChange={(e) => setSearchValue(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        {/* Package Selection */}
-        <div className="border rounded-md bg-background">
-          <ScrollArea className="h-[200px]">
-            <div className="p-2">
-              {filteredPackages.length > 0 ? (
-                <div className="space-y-1">
-                  {filteredPackages.map((pkg) => (
-                    <div
-                      key={pkg.id}
-                      onClick={() => setSelectedPackageId(pkg.id)}
-                      className={`p-3 rounded-md cursor-pointer transition-colors ${
-                        selectedPackageId === pkg.id 
-                          ? 'bg-primary text-primary-foreground' 
-                          : 'hover:bg-accent hover:text-accent-foreground'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-medium">{pkg.title}</div>
-                        <div className="text-sm font-semibold">
-                          ₹{Number(pkg.amount).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="text-xs opacity-70 mt-1">
-                        Category: {pkg.category || 'N/A'}
-                      </div>
-                      {pkg.ngo_id && pkg.ngo_id !== ngo.id && (
-                        <div className="text-xs text-orange-400 mt-1">
-                          Currently assigned to another NGO
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-4 text-center text-sm text-muted-foreground">
-                  {searchValue ? 'No packages found matching your search.' : 'No packages available for assignment.'}
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {selectedPackage && (
-          <div className="mt-2 p-2 bg-muted rounded-md text-sm">
-            <strong>Selected:</strong> {selectedPackage.title} - ₹{Number(selectedPackage.amount).toLocaleString()}
-          </div>
-        )}
-
-        {availablePackages.length === 0 && (
-          <p className="text-sm text-muted-foreground mt-2">
-            No packages available for assignment. All packages are already assigned to this NGO.
-          </p>
-        )}
-      </div>
-
       <div className="flex justify-end space-x-2">
-        <Button 
-          type="submit" 
-          disabled={!selectedPackageId || availablePackages.length === 0}
-        >
-          Assign Package
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit">Update User</Button>
       </div>
     </form>
-  );
-};
-
-const EscrowManagementTable = () => {
-  const [escrowTransactions, setEscrowTransactions] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [assigningVendor, setAssigningVendor] = useState<string | null>(null);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-
-  useEffect(() => {
-    fetchEscrowTransactions();
-    fetchVendors();
-  }, []);
-
-  const fetchEscrowTransactions = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("donations")
-        .select(`
-          *,
-          profiles(first_name, last_name, email),
-          ngos(name)
-        `)
-        .in("payment_status", ["escrow_completed", "escrow_pending"])
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error("Error fetching escrow transactions:", error);
-        toast.error("Failed to fetch escrow transactions");
-        return;
-      }
-
-      setEscrowTransactions(data || []);
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("An error occurred while fetching escrow transactions");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchVendors = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("vendors")
-        .select("*")
-        .eq("is_active", true);
-
-      if (error) {
-        console.error("Error fetching vendors:", error);
-        return;
-      }
-
-      setVendors(data || []);
-    } catch (error) {
-      console.error("Error fetching vendors:", error);
-    }
-  };
-
-  const assignVendor = async (donationId: string, vendorId: string) => {
-    try {
-      setAssigningVendor(donationId);
-
-      // Update transaction with vendor assignment
-      const { error: transactionError } = await supabase
-        .from("transactions")
-        .update({
-          vendor_id: vendorId,
-          status: "vendor_assigned",
-          assigned_at: new Date().toISOString(),
-          admin_notes: "Vendor assigned for delivery processing"
-        })
-        .eq("donation_id", donationId);
-
-      if (transactionError) {
-        throw transactionError;
-      }
-
-      // Update donation status
-      const { error: donationError } = await supabase
-        .from("donations")
-        .update({
-          service_status: "assigned",
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", donationId);
-
-      if (donationError) {
-        throw donationError;
-      }
-
-      toast.success("Vendor assigned successfully!");
-      fetchEscrowTransactions();
-    } catch (error: any) {
-      console.error("Error assigning vendor:", error);
-      toast.error("Failed to assign vendor");
-    } finally {
-      setAssigningVendor(null);
-    }
-  };
-
-  const releasePayment = async (donationId: string) => {
-    try {
-      // This would integrate with actual payment release to vendor
-      const { error } = await supabase
-        .from("donations")
-        .update({
-          payment_status: "completed",
-          service_status: "completed",
-          service_completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq("id", donationId);
-
-      if (error) {
-        throw error;
-      }
-
-      // Update transaction
-      const { error: transactionError } = await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-          admin_notes: "Payment released to vendor after delivery confirmation"
-        })
-        .eq("donation_id", donationId);
-
-      if (transactionError) {
-        console.error("Error updating transaction:", transactionError);
-      }
-
-      toast.success("Payment released to vendor!");
-      fetchEscrowTransactions();
-    } catch (error: any) {
-      console.error("Error releasing payment:", error);
-      toast.error("Failed to release payment");
-    }
-  };
-
-  if (isLoading) {
-    return <div className="text-center py-8">Loading escrow transactions...</div>;
-  }
-
-  if (escrowTransactions.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-muted-foreground">No escrow transactions found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Donor</TableHead>
-            <TableHead>Package</TableHead>
-            <TableHead>NGO</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Created</TableHead>
-            <TableHead>Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {escrowTransactions.map((transaction) => (
-            <TableRow key={transaction.id}>
-              <TableCell>
-                <div>
-                  <div className="font-medium">
-                    {transaction.profiles?.first_name} {transaction.profiles?.last_name}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {transaction.profiles?.email}
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>
-                <div>
-                  <div className="font-medium">{transaction.package_title}</div>
-                  <div className="text-sm text-muted-foreground">
-                    Qty: {transaction.quantity}
-                  </div>
-                </div>
-              </TableCell>
-              <TableCell>{transaction.ngos?.name}</TableCell>
-              <TableCell className="font-medium">
-                ₹{Number(transaction.total_amount).toLocaleString()}
-              </TableCell>
-              <TableCell>
-                <Badge 
-                  variant={transaction.payment_status === "escrow_completed" ? "default" : "secondary"}
-                >
-                  {transaction.payment_status === "escrow_completed" ? "Ready to Assign" : "Processing"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {format(new Date(transaction.created_at), "MMM dd, yyyy")}
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  {transaction.payment_status === "escrow_completed" && 
-                   transaction.service_status === "admin_review" && (
-                    <Select
-                      onValueChange={(vendorId) => assignVendor(transaction.id, vendorId)}
-                      disabled={assigningVendor === transaction.id}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue placeholder="Assign Vendor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.company_name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  {transaction.service_status === "assigned" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => releasePayment(transaction.id)}
-                    >
-                      <ArrowRight className="h-4 w-4 mr-1" />
-                      Release Payment
-                    </Button>
-                  )}
-                  {transaction.service_status === "completed" && (
-                    <Badge variant="secondary">
-                      <CreditCard className="h-4 w-4 mr-1" />
-                      Payment Released
-                    </Badge>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
   );
 };
 

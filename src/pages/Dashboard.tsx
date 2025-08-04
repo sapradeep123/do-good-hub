@@ -56,47 +56,27 @@ const Dashboard = () => {
 
   const checkUserRole = async () => {
     try {
-      // Check if user has NGO role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "ngo")
-        .single();
+      // Check user role from the user object (from our API)
+      if (user?.role === 'admin') {
+        // User is an admin, redirect to admin dashboard
+        navigate("/admin");
+        return;
+      }
 
-      if (roleData && !roleError) {
+      if (user?.role === 'ngo') {
         // User is an NGO, redirect to NGO dashboard
         navigate("/ngo-dashboard");
         return;
       }
 
-      // Check if user has vendor role
-      const { data: vendorRoleData, error: vendorRoleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "vendor")
-        .single();
-
-      if (vendorRoleData && !vendorRoleError) {
+      if (user?.role === 'vendor') {
         // User is a vendor, redirect to vendor dashboard
         navigate("/vendor-dashboard");
         return;
       }
 
-      // Check if user has admin role
-      const { data: adminRoleData, error: adminRoleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "admin")
-        .single();
-
-      if (adminRoleData && !adminRoleError) {
-        // User is an admin, redirect to admin dashboard
-        navigate("/admin");
-        return;
-      }
+      // If no specific role or role is 'user', stay on regular dashboard
+      // This handles regular donors/users
 
       // User is a regular user, fetch their data
       fetchDonations();
