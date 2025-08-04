@@ -5,7 +5,7 @@ dotenv.config();
 
 function getConnection() {
   // Check if we should use mock data (for development without database)
-  const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true' || !process.env.DB_HOST;
+  const USE_MOCK_DATA = process.env.USE_MOCK_DATA === 'true';
 
   if (USE_MOCK_DATA) {
     console.log('🔧 Using mock database connection for demonstration');
