@@ -513,9 +513,9 @@ const AdminDashboard = () => {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Status</TableHead>
+                       <TableHead>Location</TableHead>
+                       <TableHead>Category</TableHead>
+                       <TableHead>Status</TableHead>
                       <TableHead>Verified</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead>Actions</TableHead>
@@ -523,40 +523,40 @@ const AdminDashboard = () => {
                   </TableHeader>
                   <TableBody>
                     {ngos.map((ngo) => (
-                      <TableRow key={ngo.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{ngo.name}</div>
+                         <TableRow key={ngo.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{ngo.name}</div>
                             <div className="text-sm text-muted-foreground">{ngo.description}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{ngo.email}</TableCell>
-                        <TableCell>{ngo.location}</TableCell>
-                        <TableCell>{ngo.category}</TableCell>
-                        <TableCell>
+                            </div>
+                          </TableCell>
+                          <TableCell>{ngo.email}</TableCell>
+                          <TableCell>{ngo.location}</TableCell>
+                          <TableCell>{ngo.category}</TableCell>
+                           <TableCell>
                           <Badge variant={ngo.is_active ? "default" : "secondary"}>
                             {ngo.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
+                             </Badge>
+                           </TableCell>
+                           <TableCell>
                           <Badge variant={ngo.is_verified ? "default" : "secondary"}>
                             {ngo.is_verified ? "Verified" : "Pending"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
+                                   </Badge>
+                           </TableCell>
+                          <TableCell>
                           {format(new Date(ngo.created_at), 'MMM dd, yyyy')}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
+                          </TableCell>
+                          <TableCell>
+                             <div className="flex space-x-2">
                             <Button variant="ghost" size="sm" onClick={() => editNGO(ngo)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                                 <Edit className="h-4 w-4" />
+                               </Button>
                             <Button variant="ghost" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                                 <Trash2 className="h-4 w-4" />
+                               </Button>
+                             </div>
+                          </TableCell>
+                        </TableRow>
                     ))}
                   </TableBody>
                 </Table>
@@ -584,13 +584,13 @@ const AdminDashboard = () => {
                       <DialogTitle>Create New Vendor</DialogTitle>
                       <DialogDescription>Add a new vendor to the platform</DialogDescription>
                     </DialogHeader>
-                    <CreateVendorForm 
-                      ngos={ngos}
-                      onSuccess={() => {
-                        setIsCreateVendorOpen(false);
-                        fetchVendors();
-                      }}
-                    />
+                     <CreateVendorForm 
+                       ngos={ngos}
+                       onSuccess={() => {
+                         setIsCreateVendorOpen(false);
+                         fetchVendors();
+                       }}
+                     />
                   </DialogContent>
                 </Dialog>
               </CardHeader>
@@ -609,15 +609,15 @@ const AdminDashboard = () => {
                   </TableHeader>
                   <TableBody>
                     {vendors.map((vendor) => (
-                      <TableRow key={vendor.id}>
-                        <TableCell className="font-medium">{vendor.company_name}</TableCell>
+                         <TableRow key={vendor.id}>
+                           <TableCell className="font-medium">{vendor.company_name}</TableCell>
                         <TableCell>{vendor.ngo_name || 'No NGO assigned'}</TableCell>
                         <TableCell>{vendor.email}</TableCell>
                         <TableCell>{vendor.phone}</TableCell>
                         <TableCell>
                           <Badge variant={vendor.is_active ? "default" : "secondary"}>
                             {vendor.is_active ? "Active" : "Inactive"}
-                          </Badge>
+                            </Badge>
                         </TableCell>
                         <TableCell>{format(new Date(vendor.created_at), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
@@ -629,10 +629,10 @@ const AdminDashboard = () => {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                         </TableCell>
+                       </TableRow>
                     ))}
-                  </TableBody>
+                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
@@ -699,7 +699,7 @@ const AdminDashboard = () => {
                         <TableCell>
                           <Badge variant={pkg.is_active ? "default" : "secondary"}>
                             {pkg.is_active ? "Active" : "Inactive"}
-                          </Badge>
+                            </Badge>
                         </TableCell>
                         <TableCell>{format(new Date(pkg.created_at), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
@@ -748,8 +748,8 @@ const AdminDashboard = () => {
                     />
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent>
+                    </CardHeader>
+                    <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -768,9 +768,9 @@ const AdminDashboard = () => {
                           <div>
                             <div className="font-medium">
                               {user.first_name} {user.last_name}
-                            </div>
+                </div>
                             <div className="text-sm text-muted-foreground">{user.email}</div>
-                          </div>
+                </div>
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
@@ -892,12 +892,12 @@ const AdminDashboard = () => {
                   updateUser({ ...editingUser, ...updatedData });
                   setIsEditUserOpen(false);
                   setEditingUser(null);
-                }}
-                onCancel={() => {
+              }}
+              onCancel={() => {
                   setIsEditUserOpen(false);
                   setEditingUser(null);
-                }}
-              />
+              }}
+            />
             )}
           </DialogContent>
         </Dialog>
@@ -911,7 +911,7 @@ const CreateNGOForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     toast.success("NGO created successfully!");
-    onSuccess();
+      onSuccess();
   };
 
   return (
@@ -952,7 +952,7 @@ const CreateNGOForm = ({ onSuccess }: { onSuccess: () => void }) => {
       </div>
       <div className="flex justify-end space-x-2">
         <Button type="submit">Create NGO</Button>
-      </div>
+        </div>
     </form>
   );
 };
@@ -961,7 +961,7 @@ const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => v
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     toast.success("Vendor created successfully!");
-    onSuccess();
+      onSuccess();
   };
 
   return (
@@ -1001,10 +1001,10 @@ const CreateVendorForm = ({ ngos, onSuccess }: { ngos: NGO[]; onSuccess: () => v
               <SelectItem key={ngo.id} value={ngo.id}>
                 {ngo.name}
               </SelectItem>
-            ))}
+          ))}
           </SelectContent>
         </Select>
-      </div>
+        </div>
       <div className="flex justify-end space-x-2">
         <Button type="submit">Create Vendor</Button>
       </div>
@@ -1020,16 +1020,16 @@ const CreatePackageForm = ({ ngos, vendors, onSuccess }: {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     toast.success("Package created successfully!");
-    onSuccess();
+      onSuccess();
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div>
+      <div>
           <Label htmlFor="title">Package Title</Label>
           <Input id="title" required />
-        </div>
+      </div>
         <div>
           <Label htmlFor="amount">Amount (₹)</Label>
           <Input id="amount" type="number" required />
@@ -1121,28 +1121,28 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">NGO Name</Label>
-          <Input 
-            id="name" 
+          <Input
+            id="name"
             value={formData.name}
             onChange={(e) => handleInputChange('name', e.target.value)}
-            required 
+            required
           />
         </div>
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input 
-            id="email" 
-            type="email" 
+          <Input
+            id="email"
+            type="email"
             value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
-            required 
+            required
           />
         </div>
       </div>
       <div>
         <Label htmlFor="description">Description</Label>
-        <Textarea 
-          id="description" 
+        <Textarea
+          id="description"
           value={formData.description}
           onChange={(e) => handleInputChange('description', e.target.value)}
         />
@@ -1150,8 +1150,8 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="location">Location</Label>
-          <Input 
-            id="location" 
+          <Input
+            id="location"
             value={formData.location}
             onChange={(e) => handleInputChange('location', e.target.value)}
             required 
@@ -1176,7 +1176,7 @@ const EditNGOForm = ({ ngo, onSuccess, onCancel }: {
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Update NGO</Button>
       </div>
-    </form>
+      </form>
   );
 };
 
@@ -1210,16 +1210,16 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="company">Company Name</Label>
-          <Input 
+          <Input
             id="company" 
             value={formData.company_name}
             onChange={(e) => handleInputChange('company_name', e.target.value)}
-            required 
+            required
           />
         </div>
         <div>
           <Label htmlFor="email">Email</Label>
-          <Input 
+          <Input
             id="email" 
             type="email" 
             value={formData.email}
@@ -1231,7 +1231,7 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="contact">Contact Person</Label>
-          <Input 
+          <Input
             id="contact" 
             value={formData.contact_person}
             onChange={(e) => handleInputChange('contact_person', e.target.value)}
@@ -1239,8 +1239,8 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
         </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input 
-            id="phone" 
+          <Input
+            id="phone"
             value={formData.phone}
             onChange={(e) => handleInputChange('phone', e.target.value)}
             required 
@@ -1250,7 +1250,7 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
       <div>
         <Label htmlFor="address">Address</Label>
         <Textarea 
-          id="address" 
+          id="address"
           value={formData.address}
           onChange={(e) => handleInputChange('address', e.target.value)}
         />
@@ -1266,15 +1266,15 @@ const EditVendorForm = ({ vendor, ngos, onSuccess, onCancel }: {
               <SelectItem key={ngo.id} value={ngo.id}>
                 {ngo.name}
               </SelectItem>
-            ))}
+          ))}
           </SelectContent>
         </Select>
-      </div>
+        </div>
       <div className="flex justify-end space-x-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Update Vendor</Button>
       </div>
-    </form>
+      </form>
   );
 };
 
@@ -1309,7 +1309,7 @@ const EditPackageForm = ({ package: pkg, ngos, vendors, onSuccess, onCancel }: {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="title">Package Title</Label>
-          <Input 
+          <Input
             id="title" 
             value={formData.title}
             onChange={(e) => handleInputChange('title', e.target.value)}
@@ -1318,7 +1318,7 @@ const EditPackageForm = ({ package: pkg, ngos, vendors, onSuccess, onCancel }: {
         </div>
         <div>
           <Label htmlFor="amount">Amount (₹)</Label>
-          <Input 
+          <Input
             id="amount" 
             type="number" 
             value={formData.amount}
@@ -1336,7 +1336,7 @@ const EditPackageForm = ({ package: pkg, ngos, vendors, onSuccess, onCancel }: {
         />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <div>
+      <div>
           <Label htmlFor="ngo">NGO</Label>
           <Select value={formData.ngo_id} onValueChange={(value) => handleInputChange('ngo_id', value)}>
             <SelectTrigger>
@@ -1350,7 +1350,7 @@ const EditPackageForm = ({ package: pkg, ngos, vendors, onSuccess, onCancel }: {
               ))}
             </SelectContent>
           </Select>
-        </div>
+      </div>
         <div>
           <Label htmlFor="vendor">Vendor</Label>
           <Select value={formData.vendor_id} onValueChange={(value) => handleInputChange('vendor_id', value)}>
@@ -1393,7 +1393,7 @@ const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     toast.success("User created successfully!");
-    onSuccess();
+      onSuccess();
   };
 
   return (
@@ -1409,29 +1409,29 @@ const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
+      <div>
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" required />
-        </div>
+      </div>
         <div>
           <Label htmlFor="phone">Phone</Label>
           <Input id="phone" type="tel" />
         </div>
-      </div>
-      <div>
-        <Label htmlFor="role">Role</Label>
+        </div>
+        <div>
+          <Label htmlFor="role">Role</Label>
         <Select defaultValue="user">
-          <SelectTrigger>
+            <SelectTrigger>
             <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="user">User</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="ngo">NGO</SelectItem>
-            <SelectItem value="vendor">Vendor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="ngo">NGO</SelectItem>
+              <SelectItem value="vendor">Vendor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       <div className="flex justify-end space-x-2">
         <Button type="submit">Create User</Button>
       </div>
@@ -1442,7 +1442,7 @@ const CreateUserForm = ({ onSuccess }: { onSuccess: () => void }) => {
 const EditUserForm = ({ user, onSuccess, onCancel }: { 
   user: User; 
   onSuccess: (updatedData: Partial<User>) => void; 
-  onCancel: () => void; 
+  onCancel: () => void;
 }) => {
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
@@ -1465,64 +1465,64 @@ const EditUserForm = ({ user, onSuccess, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div>
+      <div>
           <Label htmlFor="first_name">First Name</Label>
-          <Input 
+        <Input
             id="first_name" 
             value={formData.first_name}
             onChange={(e) => handleInputChange('first_name', e.target.value)}
-            required 
-          />
-        </div>
+          required
+        />
+      </div>
         <div>
           <Label htmlFor="last_name">Last Name</Label>
-          <Input 
+          <Input
             id="last_name" 
             value={formData.last_name}
             onChange={(e) => handleInputChange('last_name', e.target.value)}
-            required 
+            required
           />
         </div>
-      </div>
+        </div>
       <div className="grid grid-cols-2 gap-4">
-        <div>
+      <div>
           <Label htmlFor="email">Email</Label>
-          <Input 
+        <Input
             id="email" 
             type="email" 
             value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
             required 
-          />
-        </div>
-        <div>
+        />
+      </div>
+      <div>
           <Label htmlFor="phone">Phone</Label>
-          <Input 
+          <Input
             id="phone" 
             type="tel" 
             value={formData.phone}
             onChange={(e) => handleInputChange('phone', e.target.value)}
           />
         </div>
-      </div>
-      <div>
+                        </div>
+                <div>
         <Label htmlFor="role">Role</Label>
         <Select value={formData.role} onValueChange={(value) => handleInputChange('role', value)}>
           <SelectTrigger>
             <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
+                      </SelectTrigger>
+                      <SelectContent>
             <SelectItem value="user">User</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="ngo">NGO</SelectItem>
             <SelectItem value="vendor">Vendor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+                      </SelectContent>
+                    </Select>
+                </div>
       <div className="flex justify-end space-x-2">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit">Update User</Button>
-      </div>
+    </div>
     </form>
   );
 };

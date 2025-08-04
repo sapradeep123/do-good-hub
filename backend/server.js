@@ -63,7 +63,7 @@ app.get('/health', (req, res) => {
 });
 
 // Database connection
-const pool = require('./dist/database/connection');
+const pool = require('./dist/database/connection').default;
 
 // Auth routes
 app.post('/api/auth/login', async (req, res) => {
