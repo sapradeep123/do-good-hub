@@ -176,6 +176,95 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// Password reset routes
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+    
+    // Validate inputs
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ error: 'Email, token, and new password are required' });
+    }
+    
+    // Check if token is valid and not expired
+    const tokenResult = await pool.query(
+      'SELECT * FROM password_reset_requests WHERE email = $1 AND token = $2 AND used = false AND expires_at > NOW()',
+      [email, token]
+    );
+    
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+    
+    // Get user from profiles
+    const userResult = await pool.query(
+      'SELECT * FROM profiles WHERE email = $1',
+      [email]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Update password (in a real app, you'd hash this)
+    await pool.query(
+      'UPDATE profiles SET password = $1 WHERE email = $2',
+      [newPassword, email]
+    );
+    
+    // Mark token as used
+    await pool.query(
+      'UPDATE password_reset_requests SET used = true WHERE email = $1 AND token = $2',
+      [email, token]
+    );
+    
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+app.post('/api/auth/generate-reset-token', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Check if user exists
+    const userResult = await pool.query(
+      'SELECT * FROM profiles WHERE email = $1',
+      [email]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Generate secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    // Store reset request
+    await pool.query(
+      'INSERT INTO password_reset_requests (email, token, expires_at, used) VALUES ($1, $2, $3, false)',
+      [email, token, new Date(Date.now() + 3600000).toISOString()] // 1 hour
+    );
+    
+    res.json({ 
+      success: true, 
+      token,
+      message: 'Reset token generated successfully',
+      expiresAt: new Date(Date.now() + 3600000).toISOString()
+    });
+  } catch (error) {
+    console.error('Generate reset token error:', error);
+    res.status(500).json({ error: 'Failed to generate reset token' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
