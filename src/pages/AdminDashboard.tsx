@@ -1,7 +1,9 @@
+
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Users, Building, Package, Plus, Edit, Trash2, Key } from "lucide-react";
 import { format } from "date-fns";
+import AdminPasswordReset from "@/components/AdminPasswordReset";
 
 // Simple interfaces
 interface User {
@@ -98,6 +101,12 @@ const AdminDashboard = () => {
   const [isEditVendorOpen, setIsEditVendorOpen] = useState(false);
   const [isEditPackageOpen, setIsEditPackageOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  
+  // Password reset states
+  const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
+  const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
+  const [resetToken, setResetToken] = useState("");
+  
   const [editingNGO, setEditingNGO] = useState<NGO | null>(null);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
@@ -384,9 +393,39 @@ const AdminDashboard = () => {
     ));
   };
 
-  const resetPassword = (user: User) => {
-    // In a real application, this would send a password reset email
-    toast.success(`Password reset email sent to ${user.email}`);
+  const resetPassword = async (user: User) => {
+    try {
+      // Generate a secure reset token (compatible with backend)
+      const token = Math.random().toString(36).substring(2, 15) + 
+                   Math.random().toString(36).substring(2, 15) +
+                   Date.now().toString(36);
+      
+      // Store the reset request in the database
+      const { error } = await supabase
+        .from("password_reset_requests")
+        .insert({
+          email: user.email.trim().toLowerCase(),
+          token,
+          expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          used: false
+        });
+
+      if (error) {
+        console.error("Error storing reset token:", error);
+        toast.error("Failed to generate reset token");
+        return;
+      }
+
+      // Set up the password reset modal
+      setPasswordResetUser(user);
+      setResetToken(token);
+      setIsPasswordResetOpen(true);
+      
+      console.log(`Password reset token for ${user.email}:`, token);
+    } catch (error) {
+      console.error("Error generating password reset token:", error);
+      toast.error("Failed to generate password reset token");
+    }
   };
 
   if (loading || isLoading) {
@@ -898,6 +937,29 @@ const AdminDashboard = () => {
                   setEditingUser(null);
               }}
             />
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Password Reset Dialog */}
+        <Dialog open={isPasswordResetOpen} onOpenChange={setIsPasswordResetOpen}>
+          <DialogContent className="max-w-md">
+            {passwordResetUser && resetToken && (
+              <AdminPasswordReset
+                userEmail={passwordResetUser.email}
+                resetToken={resetToken}
+                onSuccess={() => {
+                  setIsPasswordResetOpen(false);
+                  setPasswordResetUser(null);
+                  setResetToken("");
+                  toast.success("Password reset completed successfully!");
+                }}
+                onCancel={() => {
+                  setIsPasswordResetOpen(false);
+                  setPasswordResetUser(null);
+                  setResetToken("");
+                }}
+              />
             )}
           </DialogContent>
         </Dialog>

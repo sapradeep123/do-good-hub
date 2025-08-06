@@ -181,6 +181,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
   try {
     const { email, token, newPassword } = req.body;
     
+    console.log('Password reset request:', { email, token: token?.substring(0, 10) + '...', newPassword: newPassword ? '***' : 'missing' });
+    
     // Validate inputs
     if (!email || !token || !newPassword) {
       return res.status(400).json({ error: 'Email, token, and new password are required' });
@@ -191,6 +193,8 @@ app.post('/api/auth/reset-password', async (req, res) => {
       'SELECT * FROM password_reset_requests WHERE email = $1 AND token = $2 AND used = false AND expires_at > NOW()',
       [email, token]
     );
+    
+    console.log('Token query result:', tokenResult.rows.length, 'rows found');
     
     if (tokenResult.rows.length === 0) {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
@@ -243,15 +247,19 @@ app.post('/api/auth/generate-reset-token', async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Generate secure token
+    // Generate secure token (compatible with Node.js)
     const crypto = require('crypto');
     const token = crypto.randomBytes(32).toString('hex');
+    
+    console.log('Generated token for', email, ':', token.substring(0, 10) + '...');
     
     // Store reset request
     await pool.query(
       'INSERT INTO password_reset_requests (email, token, expires_at, used) VALUES ($1, $2, $3, false)',
       [email, token, new Date(Date.now() + 3600000).toISOString()] // 1 hour
     );
+    
+    console.log('Token stored in database successfully');
     
     res.json({ 
       success: true, 
