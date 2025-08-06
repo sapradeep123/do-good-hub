@@ -15,9 +15,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Users, Building, Package, Plus, Edit, Trash2, Key } from "lucide-react";
+import { Users, Building, Package, Plus, Edit, Trash2, Key, Eye } from "lucide-react";
 import { format } from "date-fns";
 import AdminPasswordReset from "@/components/AdminPasswordReset";
+import NGODetailView from "@/components/NGODetailView";
 
 // Simple interfaces
 interface User {
@@ -106,6 +107,10 @@ const AdminDashboard = () => {
   const [isPasswordResetOpen, setIsPasswordResetOpen] = useState(false);
   const [passwordResetUser, setPasswordResetUser] = useState<User | null>(null);
   const [resetToken, setResetToken] = useState("");
+  
+  // NGO detail view states
+  const [isNGODetailOpen, setIsNGODetailOpen] = useState(false);
+  const [selectedNGO, setSelectedNGO] = useState<NGO | null>(null);
   
   const [editingNGO, setEditingNGO] = useState<NGO | null>(null);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
@@ -327,6 +332,11 @@ const AdminDashboard = () => {
   };
 
   // Edit functions
+  const viewNGODetails = (ngo: NGO) => {
+    setSelectedNGO(ngo);
+    setIsNGODetailOpen(true);
+  };
+
   const editNGO = (ngo: NGO) => {
     setEditingNGO(ngo);
     setIsEditNGOOpen(true);
@@ -587,6 +597,9 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>
                              <div className="flex space-x-2">
+                            <Button variant="ghost" size="sm" onClick={() => viewNGODetails(ngo)}>
+                                 <Eye className="h-4 w-4" />
+                               </Button>
                             <Button variant="ghost" size="sm" onClick={() => editNGO(ngo)}>
                                  <Edit className="h-4 w-4" />
                                </Button>
@@ -963,6 +976,25 @@ const AdminDashboard = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* NGO Detail View Dialog */}
+        {selectedNGO && (
+          <NGODetailView
+            ngo={selectedNGO}
+            vendors={vendors}
+            packages={packages}
+            users={users}
+            onEdit={(ngo) => {
+              setIsNGODetailOpen(false);
+              setSelectedNGO(null);
+              editNGO(ngo);
+            }}
+            onClose={() => {
+              setIsNGODetailOpen(false);
+              setSelectedNGO(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
