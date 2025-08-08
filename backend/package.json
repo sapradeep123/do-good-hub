@@ -9,7 +9,11 @@
     "start": "node dist/server.js",
     "migrate": "node dist/database/migrate.js",
     "seed": "node dist/database/seed.js",
-    "test": "jest"
+    "test": "jest",
+    "test:interlocks": "node tests/interlocks.test.js",
+    "seed:interlocks": "node seedinterlockstestdata.js",
+    "typecheck": "tsc --noEmit",
+    "create:vendor-package-table": "node scripts/create_vendor_package_assignments.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -26,7 +30,8 @@
     "nodemailer": "^6.9.7",
     "uuid": "^9.0.1",
     "compression": "^1.7.4",
-    "express-slow-down": "^2.0.1"
+    "express-slow-down": "^2.0.1",
+    "supertest": "^6.3.3"
   },
   "devDependencies": {
     "@types/node": "^20.8.0",
@@ -40,6 +45,7 @@
     "@types/nodemailer": "^6.4.14",
     "@types/uuid": "^9.0.7",
     "@types/compression": "^1.7.5",
+    "@types/supertest": "^2.0.16",
     "typescript": "^5.2.2",
     "ts-node": "^10.9.1",
     "nodemon": "^3.0.1",

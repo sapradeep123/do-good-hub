@@ -27,14 +27,17 @@
     },
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],  // ✅ already present
+    "types": ["node", "express"] // ⬅️ add this
   },
   "include": [
-    "src/**/*"
+    "src/**/*.ts",
+    "src/types/**/*.d.ts" // ✅ ensures your express type file is included
   ],
   "exclude": [
     "node_modules",
     "dist",
     "**/*.test.ts"
   ]
-} 
+}

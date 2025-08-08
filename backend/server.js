@@ -273,6 +273,178 @@ app.post('/api/auth/generate-reset-token', async (req, res) => {
   }
 });
 
+// Enhanced Package Management Endpoints
+app.get('/api/packages', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        p.*,
+        array_agg(DISTINCT pa.ngo_id) FILTER (WHERE pa.ngo_id IS NOT NULL) as assigned_ngos,
+        array_agg(DISTINCT pa.vendor_id) FILTER (WHERE pa.vendor_id IS NOT NULL) as assigned_vendors,
+        array_agg(DISTINCT n.name) FILTER (WHERE n.name IS NOT NULL) as ngo_names,
+        array_agg(DISTINCT v.company_name) FILTER (WHERE v.company_name IS NOT NULL) as vendor_names
+      FROM packages p
+      LEFT JOIN package_assignments pa ON p.id = pa.package_id AND pa.is_active = true
+      LEFT JOIN ngos n ON pa.ngo_id = n.id
+      LEFT JOIN vendors v ON pa.vendor_id = v.id
+      GROUP BY p.id
+      ORDER BY p.created_at DESC
+    `);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching packages:', error);
+    res.status(500).json({ error: 'Failed to fetch packages' });
+  }
+});
+
+app.post('/api/packages', async (req, res) => {
+  try {
+    const { title, description, amount, category, items_included, delivery_timeline, is_active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO packages (title, description, amount, category, items_included, delivery_timeline, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [title, description, amount, category, items_included, delivery_timeline, is_active]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error creating package:', error);
+    res.status(500).json({ error: 'Failed to create package' });
+  }
+});
+
+app.put('/api/packages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, amount, category, items_included, delivery_timeline, is_active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE packages 
+      SET title = $1, description = $2, amount = $3, category = $4, items_included = $5, delivery_timeline = $6, is_active = $7, updated_at = now()
+      WHERE id = $8
+      RETURNING *
+    `, [title, description, amount, category, items_included, delivery_timeline, is_active, id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating package:', error);
+    res.status(500).json({ error: 'Failed to update package' });
+  }
+});
+
+app.post('/api/packages/:id/duplicate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, amount, category, items_included, delivery_timeline, is_active } = req.body;
+    
+    // Get original package
+    const originalResult = await pool.query('SELECT * FROM packages WHERE id = $1', [id]);
+    if (originalResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Package not found' });
+    }
+    
+    const original = originalResult.rows[0];
+    
+    // Create new package with modifications
+    const newPackageData = {
+      title: title || original.title + ' (Copy)',
+      description: description || original.description,
+      amount: amount || original.amount,
+      category: category || original.category,
+      items_included: items_included || original.items_included,
+      delivery_timeline: delivery_timeline || original.delivery_timeline,
+      is_active: is_active !== undefined ? is_active : original.is_active
+    };
+    
+    const result = await pool.query(`
+      INSERT INTO packages (title, description, amount, category, items_included, delivery_timeline, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [
+      newPackageData.title,
+      newPackageData.description,
+      newPackageData.amount,
+      newPackageData.category,
+      newPackageData.items_included,
+      newPackageData.delivery_timeline,
+      newPackageData.is_active
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error duplicating package:', error);
+    res.status(500).json({ error: 'Failed to duplicate package' });
+  }
+});
+
+app.post('/api/packages/:id/assign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ngo_ids, vendor_ids } = req.body;
+    
+    // First, deactivate all existing assignments for this package
+    await pool.query(
+      'UPDATE package_assignments SET is_active = false WHERE package_id = $1',
+      [id]
+    );
+    
+    // Create new NGO assignments
+    if (ngo_ids && ngo_ids.length > 0) {
+      for (const ngo_id of ngo_ids) {
+        await pool.query(`
+          INSERT INTO package_assignments (package_id, ngo_id, is_active)
+          VALUES ($1, $2, true)
+          ON CONFLICT (package_id, ngo_id) 
+          DO UPDATE SET is_active = true, updated_at = now()
+        `, [id, ngo_id]);
+      }
+    }
+    
+    // Create new vendor assignments
+    if (vendor_ids && vendor_ids.length > 0) {
+      for (const vendor_id of vendor_ids) {
+        await pool.query(`
+          INSERT INTO package_assignments (package_id, vendor_id, is_active)
+          VALUES ($1, $2, true)
+          ON CONFLICT (package_id, vendor_id) 
+          DO UPDATE SET is_active = true, updated_at = now()
+        `, [id, vendor_id]);
+      }
+    }
+    
+    res.json({ success: true, message: 'Package assignments updated successfully' });
+  } catch (error) {
+    console.error('Error assigning package:', error);
+    res.status(500).json({ error: 'Failed to assign package' });
+  }
+});
+
+app.get('/api/ngos', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM ngos WHERE is_active = true ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching NGOs:', error);
+    res.status(500).json({ error: 'Failed to fetch NGOs' });
+  }
+});
+
+app.get('/api/vendors', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vendors WHERE is_active = true ORDER BY company_name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch vendors' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -284,8 +456,52 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-console.log('✅ Connected to PostgreSQL database');
-app.listen(PORT, () => {
+// Graceful shutdown handling
+const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
-}); 
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🔄 Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    pool.end(() => {
+      console.log('✅ Database connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('🔄 Shutting down gracefully...');
+  server.close(() => {
+    console.log('✅ Server closed');
+    pool.end(() => {
+      console.log('✅ Database connection closed');
+      process.exit(0);
+    });
+  });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  server.close(() => {
+    pool.end(() => {
+      process.exit(1);
+    });
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  server.close(() => {
+    pool.end(() => {
+      process.exit(1);
+    });
+  });
+});
+
+console.log('✅ Connected to PostgreSQL database'); 

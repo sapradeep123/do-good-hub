@@ -1,3 +1,4 @@
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -21,11 +22,14 @@ import ticketRoutes from './routes/tickets';
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
 import { notFound } from './middleware/notFound';
+import { attachUser } from './middleware/auth';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+// Force-load Request augmentation so req.user is known everywhere
+// import './types/express';
 
 // Security middleware
 app.use(helmet());
@@ -50,7 +54,8 @@ const limiter = rateLimit({
 const speedLimiter = slowDown({
   windowMs: 15 * 60 * 1000, // 15 minutes
   delayAfter: 50, // allow 50 requests per 15 minutes, then...
-  delayMs: 500 // begin adding 500ms of delay per request above 50
+  delayMs: () => 500  // ← function, not a number
+  //delayMs: 500 // begin adding 500ms of delay per request above 50
 });
 
 app.use(limiter);
@@ -81,6 +86,9 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development'
   });
 });
+
+// Auth middleware - attach user to request
+app.use(attachUser);
 
 // API routes
 app.use('/api/auth', authRoutes);
