@@ -1,4 +1,13 @@
 @echo off
+echo Starting backend...
+start "backend" cmd /k "cd backend & npm run dev"
+timeout /t 2 >nul
+echo Starting frontend...
+start "frontend" cmd /k "npm run dev"
+echo Both servers started. You can close this window.
+pause
+
+@echo off
 echo ========================================
 echo    Do Good Hub Project Restart Script
 echo ========================================
