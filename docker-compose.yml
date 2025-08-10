@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: do-good-hub-postgres
+    environment:
+      POSTGRES_DB: do_good_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/database/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - do-good-hub-network
+    restart: unless-stopped
+
+  # Node.js Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: do-good-hub-backend
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: do_good_hub
+      DB_USER: postgres
+      DB_PASSWORD: password
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/do_good_hub
+      JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:8082
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - postgres
+    networks:
+      - do-good-hub-network
+    restart: unless-stopped
+    command: npm run dev
+
+  # Frontend (React/Vite)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: do-good-hub-frontend
+    environment:
+      VITE_API_URL: http://localhost:3001
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - do-good-hub-network
+    restart: unless-stopped
+    command: npm run dev
+
+volumes:
+  postgres_data:
+
+networks:
+  do-good-hub-network:
+    driver: bridge

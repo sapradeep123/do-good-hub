@@ -1,0 +1,45 @@
+# Do Good Hub - Startup Instructions
+
+## Prerequisites
+1. Node.js installed
+2. PostgreSQL running on localhost:5432
+3. Database 'do_good_hub' created
+
+## 1. Start Backend
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+## 2. Start Frontend (in new terminal)
+```bash
+npm install
+npm run dev
+```
+
+## 3. Access Application
+- Frontend: http://localhost:8080
+- Backend: http://localhost:3001
+- Health Check: http://localhost:3001/health
+
+## 4. Login Credentials
+- Regular User: testuser2@gmail.com / Password123
+- Admin User: admin@dogoodhub.com / Admin@123
+
+## 5. Database Setup (if needed)
+```bash
+cd backend
+npm run migrate
+```
+
+## 6. Troubleshooting
+- If backend fails to start, check PostgreSQL is running
+- If frontend can't connect, check backend is running on port 3001
+- Check .env files are properly configured
+- Ensure CORS is set to http://localhost:8080
+
+## 7. Development
+- Backend logs: Check terminal running npm run dev in backend/
+- Frontend logs: Check browser console
+- Database: Use pgAdmin or psql to connect to PostgreSQL 

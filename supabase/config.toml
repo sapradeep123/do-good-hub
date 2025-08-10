@@ -1,0 +1,7 @@
+project_id = "cmjfaekfldzpsyuvctxs"
+
+[functions.create-sample-data]
+verify_jwt = false
+
+[functions.reset-password]
+verify_jwt = false
