@@ -245,14 +245,15 @@ router.get('/:id/packages', requireRole(['admin', 'ngo', 'vendor']), async (req,
       SELECT 
         p.*,
         pa.id as assignment_id,
-        array_agg(DISTINCT vpa.vendor_id) FILTER (WHERE vpa.vendor_id IS NOT NULL) as vendor_ids,
-        array_agg(DISTINCT v.company_name) FILTER (WHERE v.company_name IS NOT NULL) as vendor_names
+        pa.status as assignment_status,
+        pa.delivery_date,
+        pa.notes,
+        v.id as vendor_id,
+        v.company_name as vendor_name
       FROM packages p
       JOIN package_assignments pa ON p.id = pa.package_id AND pa.is_active = true
-      LEFT JOIN vendor_package_assignments vpa ON pa.id = vpa.package_assignment_id
-      LEFT JOIN vendors v ON vpa.vendor_id = v.id
+      LEFT JOIN vendors v ON pa.vendor_id = v.id
       WHERE pa.ngo_id = $1
-      GROUP BY p.id, pa.id
       ORDER BY p.created_at DESC
     `, [id]);
     

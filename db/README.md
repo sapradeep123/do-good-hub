@@ -44,3 +44,4 @@ You may want to create initial admin users and sample data as needed.
 - All tables use UUID primary keys
 - Foreign key constraints maintain referential integrity
 - The `package_assignments` table enforces complete NGO-Vendor-Package relationships
+\n\nRestore schema: psql -d do_good_hub -f db/schema.sql\nSeed (optional): psql -d do_good_hub -f db/seed.sql\nCREATE EXTENSION IF NOT EXISTS uuid-ossp;

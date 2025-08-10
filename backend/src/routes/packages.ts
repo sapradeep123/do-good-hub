@@ -49,7 +49,7 @@ router.get('/:id', requireRole(['admin', 'ngo', 'vendor']), async (req: Request,
   } catch (error) {
     console.error('Error fetching package:', error);
     return res.status(500).json({
-      success: false,
+        success: false,
       message: 'Failed to fetch package'
     });
   }
@@ -99,10 +99,10 @@ router.post('/:id/assign', requireRole(['admin']), async (req: Request, res: Res
   try {
     const { id } = req.params; // package_id
     const { ngo_id, vendor_id } = req.body as { ngo_id?: string; vendor_id?: string };
-    
+
     if (!ngo_id || !vendor_id) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: 'Both NGO ID and Vendor ID are required' 
       });
     }
@@ -144,22 +144,22 @@ router.post('/:id/assign', requireRole(['admin']), async (req: Request, res: Res
       });
     } else {
       // Create new assignment
-      const result = await pool.query(`
+    const result = await pool.query(`
         INSERT INTO package_assignments (package_id, ngo_id, vendor_id, is_active, status, created_at)
         VALUES ($1, $2, $3, true, 'pending', NOW())
         RETURNING id
       `, [id, ngo_id, vendor_id]);
-      
-      return res.json({ 
-        success: true, 
+
+    return res.json({
+      success: true,
         message: 'NGO and Vendor assigned successfully',
         data: { assignment_id: result.rows[0].id }
-      });
+    });
     }
   } catch (error: any) {
     console.error('Error in unified assign endpoint:', error?.message || error);
-    return res.status(500).json({ 
-      success: false, 
+    return res.status(500).json({
+      success: false,
       message: 'Failed to assign NGO and Vendor',
       error: error?.message 
     });
@@ -271,27 +271,35 @@ router.get('/:id/available-ngos', requireRole(['admin']), async (req: Request, r
 router.get('/:id/available-vendors', requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params; // package_id
-    
-    const result = await pool.query(`
-      SELECT DISTINCT ON (v.id) v.id, v.company_name
-      FROM vendors v
-      WHERE NOT EXISTS (
-        SELECT 1 FROM package_assignments pa
-        WHERE pa.package_id = $1 AND pa.vendor_id = v.id
-      )
-      ORDER BY v.id, v.company_name
-    `, [id]);
-    
-    return res.json({
-      success: true,
-      data: result.rows
-    });
+    const { ngo_id } = req.query as { ngo_id?: string };
+
+    const params: any[] = ngo_id ? [id, ngo_id] : [id];
+    const query = ngo_id
+      ? `
+        SELECT DISTINCT ON (v.id) v.id, v.company_name
+        FROM vendors v
+        WHERE NOT EXISTS (
+          SELECT 1 FROM package_assignments pa
+          WHERE pa.package_id = $1 AND pa.ngo_id = $2 AND pa.vendor_id = v.id
+        )
+        ORDER BY v.id, v.company_name
+      `
+      : `
+        SELECT DISTINCT ON (v.id) v.id, v.company_name
+        FROM vendors v
+        WHERE NOT EXISTS (
+          SELECT 1 FROM package_assignments pa
+          WHERE pa.package_id = $1 AND pa.vendor_id = v.id
+        )
+        ORDER BY v.id, v.company_name
+      `;
+
+    const result = await pool.query(query, params);
+
+    return res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('Error loading available vendors:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to load available vendors'
-    });
+    return res.status(500).json({ success: false, message: 'Failed to load available vendors' });
   }
 });
 

@@ -5,6 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon",
+    "dedupe": "node scripts/dedupe-db.js",
     "build": "tsc",
     "start": "node dist/server.js",
     "migrate": "node dist/database/migrate.js",

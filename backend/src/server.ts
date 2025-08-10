@@ -36,14 +36,40 @@ async function ensurePackageAssignmentsTable() {
       package_id uuid NOT NULL REFERENCES public.packages(id) ON DELETE CASCADE,
       ngo_id uuid NOT NULL REFERENCES public.ngos(id) ON DELETE CASCADE,
       vendor_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+      is_active boolean NOT NULL DEFAULT true,
+      status text DEFAULT 'pending',
+      delivery_date date,
+      notes text,
       created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz,
       UNIQUE (package_id, ngo_id, vendor_id)
     );
   `);
+  // Remove legacy constraints from older schema versions that conflict with the new unified model
+  await pool.query(`ALTER TABLE public.package_assignments DROP CONSTRAINT IF EXISTS check_assignment_type;`);
+  // Proactively drop ANY remaining CHECK constraints on this table (safety for older migrations)
+  const checks = await pool.query(`
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.package_assignments'::regclass AND contype = 'c'
+  `);
+  for (const row of checks.rows) {
+    const name = row.conname as string;
+    await pool.query(`ALTER TABLE public.package_assignments DROP CONSTRAINT IF EXISTS "${name}";`);
+  }
+  // Backfill columns if the table already exists without them
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending';`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS delivery_date date;`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS notes text;`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS updated_at timestamptz;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_pkg ON public.package_assignments(package_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_ngo ON public.package_assignments(ngo_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_vendor ON public.package_assignments(vendor_id);`);
 }
+
+// Debug endpoint to list package_assignments constraints (admin/dev only; no auth for local debug)
+// Note: must be declared after app is initialized; this block is moved below app initialization
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -106,26 +132,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Temporary debug route for database connection
-app.get('/debug/db', async (_req, res) => {
-  try {
-    const info = await pool.query(`
-      SELECT
-        current_database()                         AS db,
-        current_schema()                           AS schema,
-        current_setting('search_path')             AS search_path,
-        to_regclass('public.profiles')             AS regclass
-    `);
-    let profiles_count: number | null = null;
-    try {
-      const c = await pool.query('SELECT COUNT(*)::int AS n FROM public.profiles');
-      profiles_count = c.rows[0].n;
-    } catch { profiles_count = null; }
-    res.json({ ...info.rows[0], profiles_count });
-  } catch (e:any) {
-    res.status(500).json({ error: e.message });
-  }
-});
 
 // API routes that DO NOT need authentication (login/register)
 app.use('/api/auth', authRoutes);
@@ -159,6 +165,8 @@ app.get('/api', (req, res) => {
     }
   });
 });
+
+// (Removed debug endpoints before repo reset)
 
 // Error handling middleware
 app.use(notFound);

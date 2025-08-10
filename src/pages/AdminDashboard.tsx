@@ -118,6 +118,11 @@ const AdminDashboard = () => {
   const [isEditPackageDialogOpen, setIsEditPackageDialogOpen] = useState(false);
   const [isViewPackageDialogOpen, setIsViewPackageDialogOpen] = useState(false);
   const [selectedPackageRow, setSelectedPackageRow] = useState<Package | null>(null);
+  const [packageAssignments, setPackageAssignments] = useState<any[]>([]);
+  const [isEditAssignmentDialogOpen, setIsEditAssignmentDialogOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [editAssignmentNGOId, setEditAssignmentNGOId] = useState<string>('');
+  const [editAssignmentVendorId, setEditAssignmentVendorId] = useState<string>('');
   const [packageForm, setPackageForm] = useState({
     title: '',
         description: '',
@@ -134,7 +139,10 @@ const AdminDashboard = () => {
         if (!ngoId || !packageId) { setOpts([]); return; }
         try {
           const r = await apiClient.get(`/api/packages/${packageId}/available-vendors?ngo_id=${encodeURIComponent(ngoId)}`) as any;
-          setOpts(r.data || r || []);
+          const list = (r.data || r || []) as any[];
+          // Deduplicate by id just in case
+          const dedup = Array.from(new Map(list.map((v: any) => [v.id, v])).values());
+          setOpts(dedup);
         } catch {
           setOpts([]);
         }
@@ -361,7 +369,16 @@ const AdminDashboard = () => {
 
   // Package handlers
   const openCreatePackage = () => { setPackageForm({ title: '', description: '', amount: 0, category: '', ngo_id: '' }); setIsCreatePackageDialogOpen(true); };
-  const openViewPackage = (pkg: Package) => { setSelectedPackageRow(pkg); setIsViewPackageDialogOpen(true); };
+  const openViewPackage = async (pkg: Package) => {
+    setSelectedPackageRow(pkg);
+    setIsViewPackageDialogOpen(true);
+    try {
+      const resp = await apiClient.get(`/api/packages/${pkg.id}/assignments`) as any;
+      setPackageAssignments(resp.data || resp || []);
+    } catch (e) {
+      setPackageAssignments([]);
+    }
+  };
   const openEditPackage = (pkg: Package) => {
     setSelectedPackageRow(pkg);
     setPackageForm({ title: pkg.title || '', description: pkg.description || '', amount: pkg.amount || 0, category: pkg.category || '', ngo_id: pkg.ngo_id || '' });
@@ -404,6 +421,56 @@ const AdminDashboard = () => {
       toast.success('Package deleted');
       fetchPackages();
     } catch (err) { console.error(err); toast.error('Failed to delete package'); }
+  };
+
+  // Assignment edit/delete helpers
+  const refreshAssignments = async () => {
+    if (!selectedPackageRow) return;
+    try {
+      const resp = await apiClient.get(`/api/packages/${selectedPackageRow.id}/assignments`) as any;
+      setPackageAssignments(resp.data || resp || []);
+    } catch (e) { setPackageAssignments([]); }
+  };
+
+  const openEditAssignment = async (assignment: any) => {
+    setEditingAssignment(assignment);
+    setEditAssignmentNGOId(assignment.ngo_id);
+    setEditAssignmentVendorId(assignment.vendor_id || '');
+    setIsEditAssignmentDialogOpen(true);
+  };
+
+  const handleUpdateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAssignment) return;
+    if (!editAssignmentNGOId || !editAssignmentVendorId) {
+      toast.error('Both NGO and Vendor are required');
+      return;
+    }
+    try {
+      await apiClient.put(`/api/packages/assignments/${editingAssignment.assignment_id}`, {
+        ngo_id: editAssignmentNGOId,
+        vendor_id: editAssignmentVendorId,
+      });
+      toast.success('Assignment updated');
+      setIsEditAssignmentDialogOpen(false);
+      setEditingAssignment(null);
+      await refreshAssignments();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update assignment');
+    }
+  };
+
+  const handleDeleteAssignment = async (assignment: any) => {
+    if (!confirm('Delete this assignment?')) return;
+    try {
+      await apiClient.delete(`/api/packages/assignments/${assignment.assignment_id}`);
+      toast.success('Assignment deleted');
+      await refreshAssignments();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete assignment');
+    }
   };
 
   // Assign NGO & Vendor handlers
@@ -1148,8 +1215,81 @@ const AdminDashboard = () => {
                 <div><strong>Category:</strong> {selectedPackageRow.category}</div>
                 <div><strong>Status:</strong> {selectedPackageRow.status}</div>
                 <div><strong>Description:</strong> {selectedPackageRow.description || '-'}</div>
+                <div style={{ marginTop: '1rem' }}>
+                  <strong>Assignments</strong>
+                  <div style={{ marginTop: 8, overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '0.5rem' }}>NGO</th>
+                          <th style={{ textAlign: 'left', padding: '0.5rem' }}>Vendor</th>
+                          <th style={{ textAlign: 'left', padding: '0.5rem' }}>Status</th>
+                          <th style={{ textAlign: 'left', padding: '0.5rem' }}>Delivery Date</th>
+                          <th style={{ textAlign: 'left', padding: '0.5rem' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {packageAssignments.map((a) => (
+                          <tr key={a.assignment_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '0.5rem' }}>{a.ngo_name || a.ngo_id}</td>
+                            <td style={{ padding: '0.5rem' }}>{a.vendor_name || a.vendor_id || '-'}</td>
+                            <td style={{ padding: '0.5rem' }}>{a.status || '-'}</td>
+                            <td style={{ padding: '0.5rem' }}>{a.delivery_date ? String(a.delivery_date).slice(0, 10) : '-'}</td>
+                            <td style={{ padding: '0.5rem' }}>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <Button variant="outline" size="sm" onClick={() => openEditAssignment(a)}>Edit</Button>
+                                <Button variant="outline" size="sm" onClick={() => handleDeleteAssignment(a)}>Delete</Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                        {packageAssignments.length === 0 && (
+                          <tr><td colSpan={5} style={{ padding: '0.75rem', color: '#6b7280' }}>No assignments</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
             </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Assignment Dialog */}
+        <Dialog open={isEditAssignmentDialogOpen} onOpenChange={setIsEditAssignmentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Assignment</DialogTitle>
+              <DialogDescription>Update NGO and Vendor for this assignment</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateAssignment} style={{ display: 'grid', gap: '0.75rem' }}>
+              <div>
+                <Label>NGO</Label>
+                <select value={editAssignmentNGOId} onChange={(e) => setEditAssignmentNGOId(e.target.value)} required style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8 }}>
+                  {editingAssignment && (
+                    <option value={editingAssignment.ngo_id}>{editingAssignment.ngo_name || editingAssignment.ngo_id}</option>
+                  )}
+                  {ngos
+                    .filter((n) => !editingAssignment || n.id !== editingAssignment.ngo_id)
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>{n.name}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <Label>Vendor</Label>
+                <VendorSelect
+                  ngoId={editAssignmentNGOId}
+                  packageId={selectedPackageRow?.id || ''}
+                  value={editAssignmentVendorId}
+                  onChange={setEditAssignmentVendorId}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsEditAssignmentDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Update</Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
 
@@ -1187,7 +1327,7 @@ const AdminDashboard = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Assign NGO & Vendor</DialogTitle>
-              <DialogDescription>NGO is required. Vendor is optional.</DialogDescription>
+              <DialogDescription>Both NGO and Vendor are required.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAssignVendor} style={{ display: 'grid', gap: '0.75rem' }}>
                   <div>
