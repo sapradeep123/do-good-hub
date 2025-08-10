@@ -65,12 +65,15 @@ router.put('/:id', requireRole(['admin']), async (req: Request, res: Response) =
 router.post('/:id/reset-password', requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    
+    // Safety: ensure columns exist even if server bootstrap didn't run it
+    await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_token text;`);
+    await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz;`);
+
     // Generate a random reset token
     const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
     
     const result = await pool.query(
-      `UPDATE profiles 
+      `UPDATE public.profiles 
        SET password_reset_token = $1, password_reset_expires = NOW() + INTERVAL '1 hour'
        WHERE id = $2
        RETURNING id, email`,
@@ -116,7 +119,7 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
 
     // Verify the reset token and check if it's still valid
     const result = await pool.query(
-      `SELECT id, email FROM profiles 
+      `SELECT id, email FROM public.profiles 
        WHERE id = $1 
          AND password_reset_token = $2 
          AND (password_reset_expires IS NULL OR (password_reset_expires::timestamptz) > NOW())`,
@@ -136,7 +139,7 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
 
     // Update the password and clear the reset token
     const update = await pool.query(
-      `UPDATE profiles 
+      `UPDATE public.profiles 
        SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL
        WHERE id = $2 RETURNING id`,
       [hashedPassword, id]

@@ -583,9 +583,11 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleResetUserPassword = async (userId: string) => {
+  const handleResetUserPassword = async (userToReset: User) => {
     try {
-      const response = await apiClient.post(`/api/users/${userId}/reset-password`, {}) as any;
+      // Ensure selected user is set so confirm call has the correct ID
+      setSelectedUser(userToReset);
+      const response = await apiClient.post(`/api/users/${userToReset.id}/reset-password`, {}) as any;
       const token = response?.data?.token || (response as any)?.token;
       setResetToken(token || '');
       setIsResetPasswordDialogOpen(true);
@@ -777,7 +779,7 @@ const AdminDashboard = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleResetUserPassword(user.id)}
+                                onClick={() => handleResetUserPassword(user)}
                               >
                                 <Key style={{ height: '0.875rem', width: '0.875rem' }} />
                               </Button>

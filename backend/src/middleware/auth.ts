@@ -19,7 +19,8 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       };
     } catch (error) {
       // Log the error but don't crash - user stays undefined
-      console.log('Token verification failed:', error.message);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log('Token verification failed:', msg);
     }
   }
 
