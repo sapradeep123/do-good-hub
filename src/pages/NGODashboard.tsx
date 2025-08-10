@@ -1,822 +1,636 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
-import { Header } from "@/components/Header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { Package, Users, TrendingUp, Plus, Edit, Eye, Building2, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CalendarIcon, Package, Users, Building2, Phone, Mail, MapPin, Edit, Eye, Calendar } from 'lucide-react';
 
 interface NGO {
   id: string;
   name: string;
-  description: string;
-  mission: string;
-  location: string;
-  category: string;
-  image_url: string | null;
-  website_url: string | null;
-  phone: string | null;
-  email: string | null;
-  registration_number: string | null;
-  is_verified: boolean;
-  is_active: boolean;
+  email: string;
+  description?: string;
+  mission?: string;
+  our_story?: string;
+  about_us?: string;
+  contact_info?: string;
+  photo_url?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+  website?: string;
+  registration_number?: string;
+  verified: boolean;
+  created_at: string;
+}
+
+interface Vendor {
+  id: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  address?: string;
+  description?: string;
+  business_type?: string;
+  verified: boolean;
   created_at: string;
 }
 
 interface Package {
   id: string;
-  ngo_id: string;
-  vendor_id: string | null;
   title: string;
-  description: string;
+  description?: string;
   amount: number;
   category: string;
-  items_included: string[];
-  delivery_timeline: string;
-  is_active: boolean;
+  status: string;
+  donor_name?: string;
+  donor_email?: string;
+  occasion?: string;
+  delivery_date?: string;
+  received_date?: string;
+  notes?: string;
   created_at: string;
-  vendors?: {
-    company_name: string;
-  };
 }
 
-interface Donation {
-  id: string;
-  package_id: string;
-  package_title: string;
-  package_amount: number;
-  quantity: number;
-  total_amount: number;
-  payment_status: string;
-  created_at: string;
-  user_id: string;
+interface NGODashboardData {
+  ngo: NGO;
+  vendors: Vendor[];
+  packages: Package[];
+  totalPackages: number;
+  totalVendors: number;
+  pendingDeliveries: number;
 }
 
 const NGODashboard = () => {
-  const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [ngoData, setNgoData] = useState<NGO[]>([]);
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [donations, setDonations] = useState<Donation[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
+  const { user, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editingPackage, setEditingPackage] = useState<Package | null>(null);
+  const [dashboardData, setDashboardData] = useState<NGODashboardData | null>(null);
+  
+  // Dialog states
+  const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
+  const [isPackageDetailsDialogOpen, setIsPackageDetailsDialogOpen] = useState(false);
+  const [isDeliveryDateDialogOpen, setIsDeliveryDateDialogOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null);
+  
+  // Form states
+  const [profileFormData, setProfileFormData] = useState({
+    our_story: '',
+    about_us: '',
+    contact_info: '',
+    photo_url: ''
+  });
+  
+  const [deliveryDateForm, setDeliveryDateForm] = useState({
+    delivery_date: '',
+    reason: ''
+  });
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  useEffect(() => {
-    if (user) {
-      checkNGORole();
-    }
-  }, [user]);
-
-  const checkNGORole = async () => {
-    try {
-      // Check if user has NGO role
-      const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .eq("role", "ngo")
-        .single();
-
-      if (roleError || !roleData) {
-        console.log("User is not an NGO, redirecting to regular dashboard");
-        navigate("/dashboard");
+    if (!authLoading) {
+      if (!user) {
+        navigate('/auth');
         return;
       }
 
-      // Fetch NGO data for this user
-      await fetchNGOData();
-    } catch (error) {
-      console.error("Error checking NGO role:", error);
-      navigate("/dashboard");
-    }
-  };
-
-  const fetchNGOData = async () => {
-    try {
-      setIsLoading(true);
-
-      // Fetch NGOs managed by this user
-      const { data: ngoData, error: ngoError } = await supabase
-        .from("ngos")
-        .select("*")
-        .eq("user_id", user?.id);
-
-      // Fetch all vendors for package creation
-      const { data: vendorsData, error: vendorsError } = await supabase
-        .from("vendors")
-        .select("*")
-        .eq("is_active", true);
-
-      if (vendorsError) {
-        console.error("Error fetching vendors:", vendorsError);
-      } else {
-        setVendors(vendorsData || []);
-      }
-
-      if (ngoError) {
-        console.error("Error fetching NGO data:", ngoError);
-        toast.error("Failed to fetch NGO data");
+      if (user.role !== 'ngo') {
+        toast.error('Access denied. NGO privileges required.');
+        navigate('/dashboard');
         return;
       }
 
-      setNgoData(ngoData || []);
+      fetchDashboardData();
+    }
+  }, [user, authLoading, navigate]);
 
-      if (ngoData && ngoData.length > 0) {
-        const ngoIds = ngoData.map(ngo => ngo.id);
-        
-        // Fetch packages for these NGOs
-        const { data: packagesData, error: packagesError } = await supabase
-          .from("packages")
-          .select(`
-            *,
-            vendors (
-              company_name
-            )
-          `)
-          .in("ngo_id", ngoIds)
-          .order("created_at", { ascending: false });
-
-        if (packagesError) {
-          console.error("Error fetching packages:", packagesError);
-          toast.error("Failed to fetch packages");
-        } else {
-          setPackages(packagesData || []);
-        }
-
-        // Fetch donations for these packages
-        if (packagesData && packagesData.length > 0) {
-          const packageIds = packagesData.map(pkg => pkg.id);
-          
-          const { data: donationsData, error: donationsError } = await supabase
-            .from("donations")
-            .select("*")
-            .in("package_id", packageIds)
-            .order("created_at", { ascending: false });
-
-          if (donationsError) {
-            console.error("Error fetching donations:", donationsError);
-            toast.error("Failed to fetch donations");
-          } else {
-            setDonations(donationsData || []);
-          }
-        }
-      }
+  const fetchDashboardData = async () => {
+    try {
+      const response = await apiClient.get('/api/ngos/dashboard') as any;
+      setDashboardData(response);
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("An error occurred while fetching data");
+      console.error('Error fetching dashboard data:', error);
+      toast.error('Failed to fetch dashboard data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCreatePackage = async (packageData: any) => {
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      if (ngoData.length === 0) {
-        toast.error("No NGO found");
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("packages")
-        .insert({
-          ...packageData,
-          ngo_id: ngoData[0].id,
-          items_included: packageData.items_included.split(',').map((item: string) => item.trim()),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Error creating package:", error);
-        toast.error("Failed to create package");
-        return;
-      }
-
-      toast.success("Package created successfully");
-      setIsCreateDialogOpen(false);
-      await fetchNGOData(); // Refresh data
+      await apiClient.put(`/api/ngos/${dashboardData?.ngo.id}/profile`, profileFormData);
+      toast.success('Profile updated successfully!');
+      setIsProfileDialogOpen(false);
+      fetchDashboardData(); // Refresh data
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("An error occurred while creating the package");
+      console.error('Error updating profile:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile');
     }
   };
 
-  const handleUpdatePackage = async (packageData: any) => {
+  const handleDeliveryDateUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPackage) return;
+
     try {
-      if (!editingPackage) return;
-
-      const { error } = await supabase
-        .from("packages")
-        .update({
-          ...packageData,
-          items_included: packageData.items_included.split(',').map((item: string) => item.trim()),
-        })
-        .eq("id", editingPackage.id);
-
-      if (error) {
-        console.error("Error updating package:", error);
-        toast.error("Failed to update package");
-        return;
-      }
-
-      toast.success("Package updated successfully");
-      setIsEditDialogOpen(false);
-      setEditingPackage(null);
-      await fetchNGOData(); // Refresh data
+      await apiClient.put(`/api/packages/${selectedPackage.id}/delivery-date`, {
+        delivery_date: deliveryDateForm.delivery_date,
+        reason: deliveryDateForm.reason
+      });
+      toast.success('Delivery date updated successfully!');
+      setIsDeliveryDateDialogOpen(false);
+      setSelectedPackage(null);
+      setDeliveryDateForm({ delivery_date: '', reason: '' });
+      fetchDashboardData(); // Refresh data
     } catch (error) {
-      console.error("Error:", error);
-      toast.error("An error occurred while updating the package");
+      console.error('Error updating delivery date:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update delivery date');
     }
   };
 
-  const handleDeletePackage = async (packageId: string) => {
-    try {
-      const { error } = await supabase
-        .from("packages")
-        .delete()
-        .eq("id", packageId);
-
-      if (error) {
-        console.error("Error deleting package:", error);
-        toast.error("Failed to delete package");
-        return;
-      }
-
-      toast.success("Package deleted successfully");
-      await fetchNGOData(); // Refresh data
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("An error occurred while deleting the package");
+  const openProfileDialog = () => {
+    if (dashboardData?.ngo) {
+      setProfileFormData({
+        our_story: dashboardData.ngo.our_story || '',
+        about_us: dashboardData.ngo.about_us || '',
+        contact_info: dashboardData.ngo.contact_info || '',
+        photo_url: dashboardData.ngo.photo_url || ''
+      });
+      setIsProfileDialogOpen(true);
     }
   };
 
-  const handleEditPackage = (pkg: Package) => {
-    setEditingPackage(pkg);
-    setIsEditDialogOpen(true);
+  const openPackageDetails = (pkg: Package) => {
+    setSelectedPackage(pkg);
+    setIsPackageDetailsDialogOpen(true);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
-      case "pending":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
-      case "failed":
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
-    }
+  const openDeliveryDateDialog = (pkg: Package) => {
+    setSelectedPackage(pkg);
+    setDeliveryDateForm({
+      delivery_date: pkg.delivery_date || '',
+      reason: ''
+    });
+    setIsDeliveryDateDialogOpen(true);
   };
 
-  const totalRaised = donations
-    .filter(d => d.payment_status === "completed")
-    .reduce((sum, d) => sum + Number(d.total_amount), 0);
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      'pending': { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+      'in_progress': { color: 'bg-blue-100 text-blue-800', label: 'In Progress' },
+      'delivered': { color: 'bg-green-100 text-green-800', label: 'Delivered' },
+      'received': { color: 'bg-purple-100 text-purple-800', label: 'Received' }
+    };
+    
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    return <Badge className={config.color}>{config.label}</Badge>;
+  };
 
-  const completedDonations = donations.filter(d => d.payment_status === "completed").length;
-  const activePackages = packages.filter(p => p.is_active).length;
-
-  if (loading || isLoading) {
+  if (authLoading || isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading NGO Dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (ngoData.length === 0) {
+  if (!dashboardData) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container mx-auto px-4 py-8">
+      <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
-            <Building2 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-2xl font-semibold mb-2">No NGO Assigned</h2>
-            <p className="text-muted-foreground">
-              You don't have any NGO organizations assigned to your account. 
-              Please contact an administrator to assign you to an NGO.
-            </p>
-          </div>
+          <p className="text-red-600">Failed to load dashboard data</p>
+          <Button onClick={fetchDashboardData} className="mt-4">Retry</Button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">NGO Dashboard</h1>
-          <p className="text-muted-foreground">
-            Manage your organization's packages and track donations
-          </p>
-        </div>
-
-        {/* NGO Information */}
-        <div className="mb-8">
-          {ngoData.map((ngo) => (
-            <Card key={ngo.id} className="mb-4">
-              <CardHeader>
-                <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {ngo.name}
-                      {ngo.is_verified && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
-                          Verified
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>{ngo.description}</CardDescription>
+          <h1 className="text-3xl font-bold text-gray-900">NGO Dashboard</h1>
+          <p className="text-gray-600">Welcome back, {dashboardData.ngo.name}</p>
                   </div>
-                  <Button variant="outline" size="sm">
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
+        <Button onClick={openProfileDialog} className="flex items-center gap-2">
+          <Edit className="w-4 h-4" />
+          Edit Profile
                   </Button>
                 </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Packages</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <strong>Location:</strong> {ngo.location}
-                  </div>
-                  <div>
-                    <strong>Category:</strong> {ngo.category}
-                  </div>
-                  <div>
-                    <strong>Phone:</strong> {ngo.phone || "Not provided"}
-                  </div>
-                </div>
+            <div className="text-2xl font-bold">{dashboardData.totalPackages}</div>
               </CardContent>
             </Card>
-          ))}
-        </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Raised</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Partner Vendors</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{totalRaised.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
-                From {completedDonations} successful donations
-              </p>
+            <div className="text-2xl font-bold">{dashboardData.totalVendors}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Packages</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Deliveries</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{activePackages}</div>
-              <p className="text-xs text-muted-foreground">
-                Out of {packages.length} total packages
-              </p>
+            <div className="text-2xl font-bold">{dashboardData.pendingDeliveries}</div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Donors</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Status</CardTitle>
+            <Badge className={dashboardData.ngo.verified ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+              {dashboardData.ngo.verified ? 'Verified' : 'Pending Verification'}
+            </Badge>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{new Set(donations.map(d => d.user_id)).size}</div>
-              <p className="text-xs text-muted-foreground">
-                Unique supporters
-              </p>
+            <div className="text-sm text-muted-foreground">
+              {dashboardData.ngo.city}, {dashboardData.ngo.state}
+            </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Main Content */}
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="packages" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="packages">Packages</TabsTrigger>
+          <TabsTrigger value="vendors">Partner Vendors</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+        </TabsList>
+
+        {/* Packages Tab */}
+        <TabsContent value="packages" className="space-y-4">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Manage Your NGO</CardTitle>
-                <CardDescription>
-                  Create and manage packages for your organization
-                </CardDescription>
-              </div>
-              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Package
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Create New Package</DialogTitle>
-                    <DialogDescription>
-                      Add a new donation package for your NGO
-                    </DialogDescription>
-                  </DialogHeader>
-                  <PackageForm 
-                    vendors={vendors} 
-                    onSubmit={handleCreatePackage}
-                    onCancel={() => setIsCreateDialogOpen(false)}
-                  />
-                </DialogContent>
-              </Dialog>
-            </div>
+              <CardTitle>Package Deliveries</CardTitle>
+              <CardDescription>Track all packages and their delivery status</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="packages" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="packages">Packages</TabsTrigger>
-                <TabsTrigger value="donations">Donations Received</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="packages" className="space-y-4">
-                <PackagesTable 
-                  packages={packages} 
-                  onEdit={handleEditPackage}
-                  onDelete={handleDeletePackage}
-                />
-              </TabsContent>
-
-              <TabsContent value="donations" className="space-y-4">
-                <DonationsTable donations={donations} getStatusColor={getStatusColor} />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-          </Card>
-        </div>
-
-        {/* Edit Package Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Edit Package</DialogTitle>
-              <DialogDescription>
-                Update package information
-              </DialogDescription>
-            </DialogHeader>
-            {editingPackage && (
-              <PackageForm 
-                vendors={vendors} 
-                initialData={editingPackage}
-                onSubmit={handleUpdatePackage}
-                onCancel={() => {
-                  setIsEditDialogOpen(false);
-                  setEditingPackage(null);
-                }}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  };
-
-interface PackagesTableProps {
-  packages: Package[];
-  onEdit: (pkg: Package) => void;
-  onDelete: (packageId: string) => void;
-}
-
-const PackagesTable = ({ packages, onEdit, onDelete }: PackagesTableProps) => {
-  if (packages.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">No packages created yet. Create your first package to start raising donations.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Package Name</TableHead>
-            <TableHead>Category</TableHead>
+                    <TableHead>Package</TableHead>
+                    <TableHead>Donor</TableHead>
+                    <TableHead>Occasion</TableHead>
             <TableHead>Amount</TableHead>
-            <TableHead>Vendor</TableHead>
             <TableHead>Status</TableHead>
+                    <TableHead>Delivery Date</TableHead>
             <TableHead>Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {packages.map((pkg) => (
+                  {dashboardData.packages.map((pkg) => (
             <TableRow key={pkg.id}>
               <TableCell>
                 <div>
                   <div className="font-medium">{pkg.title}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {pkg.description.length > 50 
-                      ? `${pkg.description.substring(0, 50)}...` 
-                      : pkg.description}
+                          <div className="text-sm text-gray-500">{pkg.description}</div>
+                </div>
+              </TableCell>
+              <TableCell>
+                        <div className="text-sm">
+                          <div>Anonymous Donor</div>
+                          <div className="text-gray-500">Donor details hidden</div>
+                        </div>
+              </TableCell>
+                      <TableCell>{pkg.occasion || 'General Donation'}</TableCell>
+                      <TableCell>₹{pkg.amount.toLocaleString()}</TableCell>
+                      <TableCell>{getStatusBadge(pkg.status)}</TableCell>
+              <TableCell>
+                        <div className="text-sm">
+                          {pkg.delivery_date ? new Date(pkg.delivery_date).toLocaleDateString() : 'Not scheduled'}
+                        </div>
+              </TableCell>
+              <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openPackageDetails(pkg)}
+                          >
+                            <Eye className="w-4 h-4" />
+                  </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDeliveryDateDialog(pkg)}
+                          >
+                            <Calendar className="w-4 h-4" />
+                      </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Vendors Tab */}
+        <TabsContent value="vendors" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Partner Vendors</CardTitle>
+              <CardDescription>Vendors associated with your NGO</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {dashboardData.vendors.map((vendor) => (
+                  <Card key={vendor.id} className="p-4">
+                    <div className="flex items-start space-x-4">
+                      <Avatar className="h-12 w-12">
+                        <AvatarFallback>{vendor.company_name.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <h3 className="font-semibold">{vendor.company_name}</h3>
+                        <p className="text-sm text-gray-600">{vendor.business_type}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Phone className="w-3 h-3 text-gray-500" />
+                          <span className="text-sm text-gray-600">{vendor.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Mail className="w-3 h-3 text-gray-500" />
+                          <span className="text-sm text-gray-600">{vendor.email}</span>
+    </div>
+                        {vendor.address && (
+                          <div className="flex items-center gap-2 mt-1">
+                            <MapPin className="w-3 h-3 text-gray-500" />
+                            <span className="text-sm text-gray-600">{vendor.address}</span>
+      </div>
+                        )}
+                        <Badge className={vendor.verified ? 'bg-green-100 text-green-800 mt-2' : 'bg-yellow-100 text-yellow-800 mt-2'}>
+                          {vendor.verified ? 'Verified' : 'Pending'}
+                </Badge>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+    </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>NGO Profile</CardTitle>
+              <CardDescription>Your organization's public information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="font-semibold mb-4">Organization Details</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium">Name</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.name}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Email</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.email}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Phone</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.phone || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Location</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.city}, {dashboardData.ngo.state}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Registration Number</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.registration_number || 'Not provided'}</p>
+                    </div>
                   </div>
                 </div>
-              </TableCell>
-              <TableCell>{pkg.category}</TableCell>
-              <TableCell className="font-medium">
-                ₹{Number(pkg.amount).toLocaleString()}
-              </TableCell>
-              <TableCell>
-                {pkg.vendors?.company_name || "No vendor assigned"}
-              </TableCell>
-              <TableCell>
-                <Badge variant={pkg.is_active ? "default" : "secondary"}>
-                  {pkg.is_active ? "Active" : "Inactive"}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onEdit(pkg)}>
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the package
-                          "{pkg.title}" and remove all associated data.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onDelete(pkg.id)}>
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+
+                <div>
+                  <h3 className="font-semibold mb-4">Public Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-sm font-medium">Our Story</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.our_story || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">About Us</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.about_us || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Contact Information</Label>
+                      <p className="text-sm text-gray-600">{dashboardData.ngo.contact_info || 'Not provided'}</p>
+                    </div>
+                  </div>
                 </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-};
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
-interface DonationsTableProps {
-  donations: Donation[];
-  getStatusColor: (status: string) => string;
-}
-
-const DonationsTable = ({ donations, getStatusColor }: DonationsTableProps) => {
-  if (donations.length === 0) {
-    return (
-      <div className="text-center py-8">
-        <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="text-muted-foreground">No donations received yet.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Package</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Quantity</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Donor</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {donations.map((donation) => (
-            <TableRow key={donation.id}>
-              <TableCell>
-                {format(new Date(donation.created_at), "MMM dd, yyyy")}
-              </TableCell>
-              <TableCell>
-                <div className="font-medium">{donation.package_title}</div>
-              </TableCell>
-              <TableCell className="font-medium">
-                ₹{Number(donation.total_amount).toLocaleString()}
-              </TableCell>
-              <TableCell>{donation.quantity}</TableCell>
-              <TableCell>
-                <Badge className={getStatusColor(donation.payment_status)}>
-                  {donation.payment_status}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                {donation.user_id.substring(0, 8)}...
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-};
-
-interface PackageFormProps {
-  vendors: any[];
-  initialData?: Package;
-  onSubmit: (data: any) => void;
-  onCancel: () => void;
-}
-
-const PackageForm = ({ vendors, initialData, onSubmit, onCancel }: PackageFormProps) => {
-  const [formData, setFormData] = useState({
-    title: initialData?.title || "",
-    description: initialData?.description || "",
-    amount: initialData?.amount || "",
-    category: initialData?.category || "",
-    vendor_id: initialData?.vendor_id || "",
-    delivery_timeline: initialData?.delivery_timeline || "",
-    items_included: initialData?.items_included?.join(', ') || "",
-    is_active: initialData?.is_active ?? true,
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.title || !formData.description || !formData.amount || !formData.category) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    onSubmit({
-      ...formData,
-      amount: parseFloat(formData.amount as string),
-    });
-  };
-
-  const categories = [
-    "Education",
-    "Healthcare", 
-    "Food & Nutrition",
-    "Clean Water",
-    "Emergency Relief",
-    "Environment",
-    "Children Welfare",
-    "Women Empowerment",
-    "Elderly Care",
-    "Other"
-  ];
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      {/* Profile Edit Dialog */}
+      <Dialog open={isProfileDialogOpen} onOpenChange={setIsProfileDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit NGO Profile</DialogTitle>
+            <DialogDescription>
+              Update your organization's public information. Name and heading details can only be edited by Admin.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleProfileUpdate} className="space-y-4">
         <div>
-          <Label htmlFor="title">Package Title *</Label>
+              <Label htmlFor="photo_url">Profile Photo URL</Label>
           <Input
-            id="title"
-            value={formData.title}
-            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-            placeholder="e.g., School Supply Kit"
-            required
+                id="photo_url"
+                value={profileFormData.photo_url}
+                onChange={(e) => setProfileFormData({ ...profileFormData, photo_url: e.target.value })}
+                placeholder="https://example.com/photo.jpg"
           />
         </div>
         <div>
-          <Label htmlFor="amount">Amount (₹) *</Label>
-          <Input
-            id="amount"
-            type="number"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-            placeholder="1000"
-            required
-            min="1"
+              <Label htmlFor="our_story">Our Story</Label>
+              <Textarea
+                id="our_story"
+                value={profileFormData.our_story}
+                onChange={(e) => setProfileFormData({ ...profileFormData, our_story: e.target.value })}
+                placeholder="Tell your organization's story..."
+                rows={4}
           />
         </div>
+            <div>
+              <Label htmlFor="about_us">About Us</Label>
+              <Textarea
+                id="about_us"
+                value={profileFormData.about_us}
+                onChange={(e) => setProfileFormData({ ...profileFormData, about_us: e.target.value })}
+                placeholder="Describe your organization's mission and work..."
+                rows={4}
+              />
       </div>
-
       <div>
-        <Label htmlFor="description">Description *</Label>
+              <Label htmlFor="contact_info">Contact Information</Label>
         <Textarea
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="Describe what this package includes and its impact..."
-          required
+                id="contact_info"
+                value={profileFormData.contact_info}
+                onChange={(e) => setProfileFormData({ ...profileFormData, contact_info: e.target.value })}
+                placeholder="Additional contact information..."
           rows={3}
         />
       </div>
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setIsProfileDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                Update Profile
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Package Details Dialog */}
+      <Dialog open={isPackageDetailsDialogOpen} onOpenChange={setIsPackageDetailsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Package Details</DialogTitle>
+            <DialogDescription>Detailed information about the package</DialogDescription>
+          </DialogHeader>
+          {selectedPackage && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm font-medium">Package Title</Label>
+                <p className="text-sm text-gray-600">{selectedPackage.title}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Description</Label>
+                <p className="text-sm text-gray-600">{selectedPackage.description || 'No description'}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Amount</Label>
+                <p className="text-sm text-gray-600">₹{selectedPackage.amount.toLocaleString()}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Category</Label>
+                <p className="text-sm text-gray-600">{selectedPackage.category}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Occasion</Label>
+                <p className="text-sm text-gray-600">{selectedPackage.occasion || 'General Donation'}</p>
+              </div>
         <div>
-          <Label htmlFor="category">Category *</Label>
-          <Select 
-            value={formData.category} 
-            onValueChange={(value) => setFormData({ ...formData, category: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <Label className="text-sm font-medium">Status</Label>
+                <div className="mt-1">{getStatusBadge(selectedPackage.status)}</div>
         </div>
         <div>
-          <Label htmlFor="vendor_id">Vendor</Label>
-          <Select 
-            value={formData.vendor_id} 
-            onValueChange={(value) => setFormData({ ...formData, vendor_id: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select vendor (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              {vendors.map((vendor) => (
-                <SelectItem key={vendor.id} value={vendor.id}>
-                  {vendor.company_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <Label className="text-sm font-medium">Delivery Date</Label>
+                <p className="text-sm text-gray-600">
+                  {selectedPackage.delivery_date ? new Date(selectedPackage.delivery_date).toLocaleDateString() : 'Not scheduled'}
+                </p>
+              </div>
+              {selectedPackage.notes && (
+                <div>
+                  <Label className="text-sm font-medium">Notes</Label>
+                  <p className="text-sm text-gray-600">{selectedPackage.notes}</p>
         </div>
+              )}
       </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
+      {/* Delivery Date Update Dialog */}
+      <Dialog open={isDeliveryDateDialogOpen} onOpenChange={setIsDeliveryDateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Delivery Date</DialogTitle>
+            <DialogDescription>
+              Change the delivery date for this package. This is useful when you already have enough supplies.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleDeliveryDateUpdate} className="space-y-4">
       <div>
-        <Label htmlFor="delivery_timeline">Delivery Timeline</Label>
+              <Label htmlFor="delivery_date">New Delivery Date</Label>
         <Input
-          id="delivery_timeline"
-          value={formData.delivery_timeline}
-          onChange={(e) => setFormData({ ...formData, delivery_timeline: e.target.value })}
-          placeholder="e.g., 2-3 weeks"
+                id="delivery_date"
+                type="date"
+                value={deliveryDateForm.delivery_date}
+                onChange={(e) => setDeliveryDateForm({ ...deliveryDateForm, delivery_date: e.target.value })}
+                required
         />
       </div>
-
       <div>
-        <Label htmlFor="items_included">Items Included</Label>
+              <Label htmlFor="reason">Reason for Date Change</Label>
         <Textarea
-          id="items_included"
-          value={formData.items_included}
-          onChange={(e) => setFormData({ ...formData, items_included: e.target.value })}
-          placeholder="Notebooks, Pens, Pencils, School Bag (separate items with commas)"
-          rows={2}
+                id="reason"
+                value={deliveryDateForm.reason}
+                onChange={(e) => setDeliveryDateForm({ ...deliveryDateForm, reason: e.target.value })}
+                placeholder="Explain why you need to change the delivery date..."
+                rows={3}
         />
       </div>
-
-      <div className="flex items-center justify-between pt-4">
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="is_active"
-            checked={formData.is_active}
-            onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-            className="rounded"
-          />
-          <Label htmlFor="is_active">Active (visible to donors)</Label>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={onCancel}>
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button type="button" variant="outline" onClick={() => setIsDeliveryDateDialogOpen(false)}>
             Cancel
           </Button>
-          <Button type="submit">
-            {initialData ? "Update Package" : "Create Package"}
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                Update Date
           </Button>
         </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       </div>
-    </form>
   );
 };
 

@@ -12,6 +12,7 @@ router.post('/register', [
   body('password').isLength({ min: 6 }),
   body('firstName').notEmpty().trim(),
   body('lastName').notEmpty().trim(),
+  body('role').optional().isIn(['user', 'admin', 'ngo', 'vendor']),
 ], async (req: Request, res: Response) => {
   try {
     const errors = validationResult(req);
@@ -22,7 +23,7 @@ router.post('/register', [
       });
     }
 
-    const { email, password, firstName, lastName, phone } = req.body;
+    const { email, password, firstName, lastName, phone, role } = req.body;
 
     // Check if user already exists
     const existingUser = await pool.query(
@@ -43,10 +44,10 @@ router.post('/register', [
 
     // Create user profile
     const result = await pool.query(
-      `INSERT INTO profiles (user_id, email, first_name, last_name, phone, password_hash)
-       VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5)
+      `INSERT INTO profiles (user_id, email, first_name, last_name, phone, password_hash, role)
+       VALUES (uuid_generate_v4(), $1, $2, $3, $4, $5, $6)
        RETURNING id, user_id, email, first_name, last_name, role, created_at`,
-      [email, firstName, lastName, phone, hashedPassword]
+      [email, firstName, lastName, phone, hashedPassword, role || 'user']
     );
 
     const user = result.rows[0];

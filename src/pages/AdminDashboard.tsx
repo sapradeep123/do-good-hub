@@ -1,24 +1,17 @@
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { apiClient } from '../lib/api';
+import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Badge } from '../components/ui/badge';
+import { Users, Building, Package, LogOut, Plus, Edit, Eye, Key, Trash } from 'lucide-react';
 
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { toast } from "sonner";
-import { Users, Building, Package, Plus, Edit, Trash2, Key, Eye, Link, Unlink, LogOut } from "lucide-react";
-import { format } from "date-fns";
-import EnhancedPackageManagement from "@/components/EnhancedPackageManagement";
-
-// Interfaces
 interface User {
   id: string;
   email: string;
@@ -43,27 +36,11 @@ interface NGO {
   user_id?: string;
   verified: boolean;
   created_at: string;
-  // Frontend-only fields for form handling
-  location?: string;
-  category?: string;
-  is_active?: boolean;
-  // Backend response fields
-  packages?: Array<{
-    id: string;
-    title: string;
-    description?: string;
-    amount: number;
-    category: string;
-    vendor_ids?: string[];
-    vendor_names?: string[];
-    assignment_id?: string;
-  }>;
 }
 
 interface Vendor {
   id: string;
   company_name: string;
-  contact_person?: string;
   email: string;
   phone: string;
   address?: string;
@@ -74,18 +51,6 @@ interface Vendor {
   business_type?: string;
   verified: boolean;
   created_at: string;
-  // Frontend-only fields for form handling
-  is_active?: boolean;
-  // Backend response fields
-  served_pairs?: Array<{
-    package_id: string;
-    package_title: string;
-    package_amount: number;
-    ngo_id: string;
-    ngo_name: string;
-    assignment_id: string;
-    assigned_at: string;
-  }>;
 }
 
 interface Package {
@@ -94,286 +59,142 @@ interface Package {
   description?: string;
   amount: number;
   category: string;
-  status: string; // Backend field
+  status: string;
   ngo_id?: string;
   vendor_id?: string;
   ngo_name?: string;
   vendor_name?: string;
   created_at: string;
-  assigned_ngos?: string[];
-  assigned_vendors?: string[];
-  ngo_names?: string[];
-  vendor_names?: string[];
 }
 
 const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  
-  // Data states
   const [users, setUsers] = useState<User[]>([]);
   const [ngos, setNGOs] = useState<NGO[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
 
   // Dialog states
-  const [selectedNGO, setSelectedNGO] = useState<NGO | null>(null);
-  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
-  const [isNGODialogOpen, setIsNGODialogOpen] = useState(false);
-  const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [resetToken, setResetToken] = useState('');
+
+  // NGO states
   const [isCreateNGODialogOpen, setIsCreateNGODialogOpen] = useState(false);
   const [isEditNGODialogOpen, setIsEditNGODialogOpen] = useState(false);
-  const [isCreateVendorDialogOpen, setIsCreateVendorDialogOpen] = useState(false);
-  const [isEditVendorDialogOpen, setIsEditVendorDialogOpen] = useState(false);
-  const [editingNGO, setEditingNGO] = useState<NGO | null>(null);
-  const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-  const [ngoFormData, setNGOFormData] = useState({
+  const [isViewNGODialogOpen, setIsViewNGODialogOpen] = useState(false);
+  const [selectedNGO, setSelectedNGO] = useState<NGO | null>(null);
+  const [ngoForm, setNGOForm] = useState({
     name: '',
     email: '',
     description: '',
     mission: '',
     location: '',
-    category: '',
     phone: '',
     website_url: '',
     registration_number: '',
-    is_active: true
+    is_active: true,
   });
-  const [vendorFormData, setVendorFormData] = useState({
+
+  // Vendor states
+  const [isCreateVendorDialogOpen, setIsCreateVendorDialogOpen] = useState(false);
+  const [isEditVendorDialogOpen, setIsEditVendorDialogOpen] = useState(false);
+  const [isViewVendorDialogOpen, setIsViewVendorDialogOpen] = useState(false);
+  const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [vendorForm, setVendorForm] = useState({
     company_name: '',
     email: '',
     phone: '',
-    description: '',
     address: '',
+    description: '',
     business_type: '',
-    is_active: true
   });
 
-  // NGO form handlers
-  const handleCreateNGO = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/ngos', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(ngoFormData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create NGO');
-      }
-      
-      const result = await response.json();
-      
-      await fetchNGOs(); // Refresh the NGOs list
-      setIsCreateNGODialogOpen(false);
-      setNGOFormData({
-        name: '',
-        email: '',
+  // Package states
+  const [isCreatePackageDialogOpen, setIsCreatePackageDialogOpen] = useState(false);
+  const [isEditPackageDialogOpen, setIsEditPackageDialogOpen] = useState(false);
+  const [isViewPackageDialogOpen, setIsViewPackageDialogOpen] = useState(false);
+  const [selectedPackageRow, setSelectedPackageRow] = useState<Package | null>(null);
+  const [packageForm, setPackageForm] = useState({
+    title: '',
         description: '',
-        mission: '',
-        location: '',
+    amount: 0,
         category: '',
-        phone: '',
-        website_url: '',
-        registration_number: '',
-        is_active: true
-      });
-      toast.success('NGO created successfully!');
-    } catch (error) {
-      console.error('Error creating NGO:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create NGO');
-    }
+    ngo_id: '',
+  });
+
+  // Helper: vendor select that filters already-assigned vendors for selected NGO+package
+  const VendorSelect = ({ ngoId, packageId, value, onChange }: { ngoId: string; packageId: string; value: string; onChange: (v: string) => void }) => {
+    const [opts, setOpts] = useState<{ id: string; company_name: string }[]>([]);
+    useEffect(() => {
+      const load = async () => {
+        if (!ngoId || !packageId) { setOpts([]); return; }
+        try {
+          const r = await apiClient.get(`/api/packages/${packageId}/available-vendors?ngo_id=${encodeURIComponent(ngoId)}`) as any;
+          setOpts(r.data || r || []);
+        } catch {
+          setOpts([]);
+        }
+      };
+      load();
+    }, [ngoId, packageId]);
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} required style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8 }}>
+        <option value="" disabled>Select Vendor</option>
+        {opts.map((v) => (
+          <option key={v.id} value={v.id}>{v.company_name}</option>
+        ))}
+      </select>
+    );
   };
 
-  const handleUpdateNGO = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingNGO) return;
-    
-    try {
-      const response = await fetch(`/api/ngos/${editingNGO.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(ngoFormData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update NGO');
-      }
-      
-      const result = await response.json();
-      
-      await fetchNGOs(); // Refresh the NGOs list
-      setIsEditNGODialogOpen(false);
-      setEditingNGO(null);
-      toast.success('NGO updated successfully!');
-    } catch (error) {
-      console.error('Error updating NGO:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update NGO');
-    }
-  };
+  // Package interlocks: assign NGO/Vendor & copy
+  const [isAssignNGODialogOpen, setIsAssignNGODialogOpen] = useState(false);
+  const [isAssignVendorDialogOpen, setIsAssignVendorDialogOpen] = useState(false);
+  const [selectedPackageForAssign, setSelectedPackageForAssign] = useState<Package | null>(null);
+  const [assignNGOId, setAssignNGOId] = useState('');
+  const [assignVendorId, setAssignVendorId] = useState('');
+  const [assignVendorNGOId, setAssignVendorNGOId] = useState('');
 
-  // Vendor form handlers
-  const handleCreateVendor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/vendors', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(vendorFormData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create vendor');
-      }
-      
-      const result = await response.json();
-      
-      await fetchVendors(); // Refresh the vendors list
-      setIsCreateVendorDialogOpen(false);
-      setVendorFormData({
-        company_name: '',
-        email: '',
-        phone: '',
-        description: '',
-        address: '',
-        business_type: '',
-        is_active: true
-      });
-      toast.success('Vendor created successfully!');
-    } catch (error) {
-      console.error('Error creating vendor:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create vendor');
-    }
-  };
+  // NGO view details: packages under NGO
+  const [ngoPackages, setNgoPackages] = useState<Package[]>([]);
 
-  const handleUpdateVendor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingVendor) return;
-    
-    try {
-      const response = await fetch(`/api/vendors/${editingVendor.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(vendorFormData)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update vendor');
-      }
-      
-      const result = await response.json();
-      
-      await fetchVendors(); // Refresh the vendors list
-      setIsEditVendorDialogOpen(false);
-      setEditingVendor(null);
-      toast.success('Vendor updated successfully!');
-    } catch (error) {
-      console.error('Error updating vendor:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to update vendor');
-    }
-  };
-
-  const openCreateNGODialog = () => {
-    setNGOFormData({
-      name: '',
+  // Form states
+  const [createUserForm, setCreateUserForm] = useState({
       email: '',
-      description: '',
-      mission: '',
-      location: '',
-      category: '',
+    first_name: '',
+    last_name: '',
       phone: '',
-      website_url: '',
-      registration_number: '',
-      is_active: true
-    });
-    setIsCreateNGODialogOpen(true);
-  };
+    role: 'user'
+  });
 
-  const openEditNGODialog = (ngo: NGO) => {
-    setEditingNGO(ngo);
-    setNGOFormData({
-      name: ngo.name,
-      email: ngo.email,
-      description: ngo.description || '',
-      mission: ngo.mission || '',
-      location: ngo.city || '', // Assuming city is the location for editing
-      category: ngo.category || '', // Assuming category is the category for editing
-      phone: ngo.phone || '',
-      website_url: ngo.website || '',
-      registration_number: ngo.registration_number || '',
-      is_active: ngo.verified
-    });
-    setIsEditNGODialogOpen(true);
-  };
-
-  const openCreateVendorDialog = () => {
-    setVendorFormData({
-      company_name: '',
+  const [editUserForm, setEditUserForm] = useState({
       email: '',
+    first_name: '',
+    last_name: '',
       phone: '',
-      description: '',
-      address: '',
-      business_type: '',
-      is_active: true
-    });
-    setIsCreateVendorDialogOpen(true);
-  };
+    role: 'user'
+  });
 
-  const openEditVendorDialog = (vendor: Vendor) => {
-    setEditingVendor(vendor);
-    setVendorFormData({
-      company_name: vendor.company_name,
-      email: vendor.email,
-      phone: vendor.phone,
-      description: vendor.description || '',
-      address: vendor.address || '',
-      business_type: vendor.business_type || '',
-      is_active: vendor.verified // Map verified to is_active for form
-    });
-    setIsEditVendorDialogOpen(true);
-  };
+  const [resetPasswordForm, setResetPasswordForm] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  });
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        navigate('/auth');
+    if (authLoading) return;
+    if (!user || user.role !== 'admin') {
+      window.location.href = '/auth';
         return;
       }
-      
-      // Check if user has admin role
-      if (user.role !== 'admin') {
-        toast.error('Access denied. Admin privileges required.');
-        navigate('/dashboard');
-        return;
-      }
-      
       fetchAllData();
-    }
-  }, [user, authLoading, navigate]);
+  }, [authLoading, user]);
 
   const fetchAllData = async () => {
+    try {
     await Promise.all([
       fetchUsers(),
       fetchNGOs(),
@@ -381,287 +202,364 @@ const AdminDashboard = () => {
       fetchPackages()
     ]);
     setIsLoading(false);
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+      toast.error('Failed to load dashboard data');
+    }
   };
 
   const fetchUsers = async () => {
     try {
-      // Mock data for users
-      const mockUsers = [
-        {
-          id: '1',
-          email: 'admin@dogoodhub.com',
-          first_name: 'Admin',
-          last_name: 'User',
-          phone: '+1234567890',
-          created_at: '2024-01-01T00:00:00Z',
-          role: 'admin'
-        },
-        {
-          id: '2',
-          email: 'testuser2@gmail.com',
-          first_name: 'Test',
-          last_name: 'User',
-          phone: '+1234567891',
-          created_at: '2024-01-02T00:00:00Z',
-          role: 'user'
-        },
-        {
-          id: '3',
-          email: 'ngo@hopefoundation.org',
-          first_name: 'Hope',
-          last_name: 'Foundation',
-          phone: '+1234567892',
-          created_at: '2024-01-03T00:00:00Z',
-          role: 'ngo'
-        },
-        {
-          id: '4',
-          email: 'vendor@supplies.com',
-          first_name: 'Supply',
-          last_name: 'Vendor',
-          phone: '+1234567893',
-          created_at: '2024-01-04T00:00:00Z',
-          role: 'vendor'
-        }
-      ];
-
-      setUsers(mockUsers);
+      const response = await apiClient.get('/api/users') as any;
+      setUsers(response.data || response || []);
     } catch (error) {
-      console.error("Error fetching users:", error);
-      toast.error("Failed to fetch users");
+      console.error('Failed to fetch users:', error);
+      toast.error('Failed to fetch users');
     }
   };
 
   const fetchNGOs = async () => {
     try {
-      const response = await fetch('/api/ngos', {
-        headers: {
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1',
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch NGOs');
-      }
-      const data = await response.json();
-      const ngos = Array.isArray(data) ? data : (data.data || []);
-      setNGOs(ngos);
+      const response = await apiClient.get('/api/ngos') as any;
+      setNGOs(response.data || response || []);
     } catch (error) {
-      console.error("Error fetching NGOs:", error);
-      toast.error("Failed to fetch NGOs");
+      console.error('Failed to fetch NGOs:', error);
+      toast.error('Failed to fetch NGOs');
     }
   };
 
   const fetchVendors = async () => {
     try {
-      const response = await fetch('/api/vendors', {
-        headers: {
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1',
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch vendors');
-      }
-      const data = await response.json();
-      const vendors = Array.isArray(data) ? data : (data.data || []);
-      setVendors(vendors);
+      const response = await apiClient.get('/api/vendors') as any;
+      setVendors(response.data || response || []);
     } catch (error) {
-      console.error("Error fetching vendors:", error);
-      toast.error("Failed to fetch vendors");
+      console.error('Failed to fetch vendors:', error);
+      toast.error('Failed to fetch vendors');
     }
   };
 
   const fetchPackages = async () => {
     try {
-      const response = await fetch('/api/packages', {
-        headers: {
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1',
-          'Content-Type': 'application/json'
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch packages');
-      }
-      const data = await response.json();
-      const packages = Array.isArray(data) ? data : (data.data || []);
-      setPackages(packages);
+      const response = await apiClient.get('/api/packages') as any;
+      setPackages(response.data || response || []);
     } catch (error) {
-      console.error("Error fetching packages:", error);
-      toast.error("Failed to fetch packages");
+      console.error('Failed to fetch packages:', error);
+      toast.error('Failed to fetch packages');
     }
   };
 
-  // Dialog handlers
-  const handleViewNGO = async (ngo: NGO) => {
+  // NGO handlers
+  const openCreateNGO = () => {
+    setNGOForm({ name: '', email: '', description: '', mission: '', location: '', phone: '', website_url: '', registration_number: '', is_active: true });
+    setIsCreateNGODialogOpen(true);
+  };
+  const openViewNGO = async (ngo: NGO) => {
+    setSelectedNGO(ngo);
     try {
-      // Fetch detailed NGO data with packages and vendors
-      const response = await fetch(`/api/ngos/${ngo.id}`, {
-        headers: {
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch NGO details');
-      }
-      
-      const result = await response.json();
-      if (result.success) {
-        setSelectedNGO(result.data);
-        setIsNGODialogOpen(true);
-      } else {
-        throw new Error(result.message || 'Failed to fetch NGO details');
-      }
-    } catch (error) {
-      console.error('Error fetching NGO details:', error);
-      toast.error('Failed to fetch NGO details');
-      // Fallback to basic NGO data
-      setSelectedNGO(ngo);
-      setIsNGODialogOpen(true);
+      const resp = await apiClient.get(`/api/ngos/${ngo.id}/packages`) as any;
+      setNgoPackages(resp.data || resp || []);
+    } catch (e) {
+      setNgoPackages([]);
+    }
+    setIsViewNGODialogOpen(true);
+  };
+  const openEditNGO = (ngo: NGO) => {
+    setSelectedNGO(ngo);
+    setNGOForm({
+      name: ngo.name || '',
+      email: ngo.email || '',
+      description: ngo.description || '',
+      mission: ngo.mission || '',
+      location: [ngo.city, ngo.state].filter(Boolean).join(', '),
+      phone: ngo.phone || '',
+      website_url: ngo.website || '',
+      registration_number: ngo.registration_number || '',
+      is_active: !!ngo.verified,
+    });
+    setIsEditNGODialogOpen(true);
+  };
+  const handleCreateNGO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.post('/api/ngos', ngoForm);
+      toast.success('NGO created');
+      setIsCreateNGODialogOpen(false);
+      fetchNGOs();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to create NGO');
+    }
+  };
+  const handleUpdateNGO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNGO) return;
+    try {
+      await apiClient.put(`/api/ngos/${selectedNGO.id}`, ngoForm);
+      toast.success('NGO updated');
+      setIsEditNGODialogOpen(false);
+      setSelectedNGO(null);
+      fetchNGOs();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update NGO');
+    }
+  };
+  const handleDeleteNGO = async (ngo: NGO) => {
+    if (!confirm(`Delete NGO ${ngo.name}?`)) return;
+    try {
+      await apiClient.delete(`/api/ngos/${ngo.id}`);
+      toast.success('NGO deleted');
+      fetchNGOs();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to delete NGO');
     }
   };
 
-  const handleViewVendor = async (vendor: Vendor) => {
+  // Vendor handlers
+  const openCreateVendor = () => {
+    setVendorForm({ company_name: '', email: '', phone: '', address: '', description: '', business_type: '' });
+    setIsCreateVendorDialogOpen(true);
+  };
+  const openViewVendor = (vendor: Vendor) => { setSelectedVendor(vendor); setIsViewVendorDialogOpen(true); };
+  const openEditVendor = (vendor: Vendor) => { setSelectedVendor(vendor); setVendorForm({
+    company_name: vendor.company_name || '',
+    email: vendor.email || '',
+    phone: vendor.phone || '',
+    address: vendor.address || '',
+    description: vendor.description || '',
+    business_type: vendor.business_type || '',
+  }); setIsEditVendorDialogOpen(true); };
+  const handleCreateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      // Fetch detailed vendor data with served pairs
-      const response = await fetch(`/api/vendors/${vendor.id}`, {
-        headers: {
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        }
+      await apiClient.post('/api/vendors', vendorForm);
+      toast.success('Vendor created');
+      setIsCreateVendorDialogOpen(false);
+      fetchVendors();
+    } catch (err) { console.error(err); toast.error('Failed to create vendor'); }
+  };
+  const handleUpdateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVendor) return;
+    try {
+      await apiClient.put(`/api/vendors/${selectedVendor.id}`, vendorForm);
+      toast.success('Vendor updated');
+      setIsEditVendorDialogOpen(false);
+      setSelectedVendor(null);
+      fetchVendors();
+    } catch (err) { console.error(err); toast.error('Failed to update vendor'); }
+  };
+  const handleDeleteVendor = async (vendor: Vendor) => {
+    if (!confirm(`Delete Vendor ${vendor.company_name}?`)) return;
+    try {
+      await apiClient.delete(`/api/vendors/${vendor.id}`);
+      toast.success('Vendor deleted');
+      fetchVendors();
+    } catch (err) { console.error(err); toast.error('Failed to delete vendor'); }
+  };
+
+  // Package handlers
+  const openCreatePackage = () => { setPackageForm({ title: '', description: '', amount: 0, category: '', ngo_id: '' }); setIsCreatePackageDialogOpen(true); };
+  const openViewPackage = (pkg: Package) => { setSelectedPackageRow(pkg); setIsViewPackageDialogOpen(true); };
+  const openEditPackage = (pkg: Package) => {
+    setSelectedPackageRow(pkg);
+    setPackageForm({ title: pkg.title || '', description: pkg.description || '', amount: pkg.amount || 0, category: pkg.category || '', ngo_id: pkg.ngo_id || '' });
+    setIsEditPackageDialogOpen(true);
+  };
+  const handleCopyPackage = (pkg: Package) => {
+    setPackageForm({
+      title: `${pkg.title} (Copy)`,
+      description: pkg.description || '',
+      amount: pkg.amount || 0,
+      category: pkg.category || '',
+      ngo_id: pkg.ngo_id || '',
+    });
+    setIsCreatePackageDialogOpen(true);
+  };
+  const handleCreatePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.post('/api/packages', packageForm);
+      toast.success('Package created');
+      setIsCreatePackageDialogOpen(false);
+      fetchPackages();
+    } catch (err) { console.error(err); toast.error('Failed to create package'); }
+  };
+  const handleUpdatePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPackageRow) return;
+    try {
+      await apiClient.put(`/api/packages/${selectedPackageRow.id}`, packageForm);
+      toast.success('Package updated');
+      setIsEditPackageDialogOpen(false);
+      setSelectedPackageRow(null);
+      fetchPackages();
+    } catch (err) { console.error(err); toast.error('Failed to update package'); }
+  };
+  const handleDeletePackage = async (pkg: Package) => {
+    if (!confirm(`Delete Package ${pkg.title}?`)) return;
+    try {
+      await apiClient.delete(`/api/packages/${pkg.id}`);
+      toast.success('Package deleted');
+      fetchPackages();
+    } catch (err) { console.error(err); toast.error('Failed to delete package'); }
+  };
+
+  // Assign NGO & Vendor handlers
+  const openAssignNGO = async (pkg: Package) => {
+    setSelectedPackageForAssign(pkg);
+    setAssignNGOId('');
+    try {
+      // Only NGOs not yet assigned to this package
+      const r = await apiClient.get(`/api/packages/${pkg.id}/available-ngos`) as any;
+      if (Array.isArray(r.data)) setNGOs(r.data);
+    } catch {}
+    setIsAssignNGODialogOpen(true);
+  };
+  const openAssignVendor = async (pkg: Package) => {
+    setSelectedPackageForAssign(pkg);
+    setAssignVendorNGOId('');
+    setAssignVendorId('');
+    try {
+      // NGOs available for this package
+      const r1 = await apiClient.get(`/api/packages/${pkg.id}/available-ngos`) as any;
+      if (Array.isArray(r1.data)) setNGOs(r1.data);
+    } catch {}
+    setIsAssignVendorDialogOpen(true);
+  };
+  const handleAssignNGO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPackageForAssign || !assignNGOId) return;
+    try {
+      await apiClient.post(`/api/packages/${selectedPackageForAssign.id}/assign-ngo`, { ngo_id: assignNGOId });
+      toast.success('Assigned NGO to package');
+      setIsAssignNGODialogOpen(false);
+    } catch (err) { console.error(err); toast.error('Failed to assign NGO'); }
+  };
+  const handleAssignVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPackageForAssign || !assignVendorNGOId || !assignVendorId) {
+      toast.error('NGO and Vendor are required');
+      return;
+    }
+    try {
+      // Unified endpoint: NGO required; Vendor optional
+      await apiClient.post(`/api/packages/${selectedPackageForAssign.id}/assign`, { ngo_id: assignVendorNGOId, vendor_id: assignVendorId });
+      toast.success('Assigned NGO & Vendor');
+      setIsAssignVendorDialogOpen(false);
+    } catch (err) { console.error(err); toast.error('Failed to assign vendor'); }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      // Generate a temporary password for the new user
+      const tempPassword = `Temp@${Math.random().toString(36).slice(2, 8)}1!`;
+      // Use the typed register helper to ensure token handling is correct
+      await apiClient.register({
+        email: createUserForm.email,
+        password: tempPassword,
+        firstName: createUserForm.first_name,
+        lastName: createUserForm.last_name,
+        phone: createUserForm.phone,
+        role: createUserForm.role,
+      } as any);
+      toast.success(`User created successfully. Temp password: ${tempPassword}`);
+      setIsCreateUserDialogOpen(false);
+      setCreateUserForm({
+        email: '',
+        first_name: '',
+        last_name: '',
+        phone: '',
+        role: 'user'
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch vendor details');
-      }
-      
-      const result = await response.json();
-      if (result.success) {
-        setSelectedVendor(result.data);
-        setIsVendorDialogOpen(true);
-      } else {
-        throw new Error(result.message || 'Failed to fetch vendor details');
-      }
+      fetchUsers();
     } catch (error) {
-      console.error('Error fetching vendor details:', error);
-      toast.error('Failed to fetch vendor details');
-      // Fallback to basic vendor data
-      setSelectedVendor(vendor);
-      setIsVendorDialogOpen(true);
+      console.error('Failed to create user:', error);
+      toast.error('Failed to create user');
     }
   };
 
-  // Enhanced Package Management Functions
-  const handlePackageCreate = async (packageData: any) => {
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
     try {
-      // Map is_active to status for backend
-      const backendData = {
-        ...packageData,
-        is_active: packageData.status === 'active'
+      // Map form keys to backend expectations
+      const payload = {
+        email: editUserForm.email,
+        firstName: editUserForm.first_name,
+        lastName: editUserForm.last_name,
+        phone: editUserForm.phone,
+        role: editUserForm.role,
       };
-      
-      const response = await fetch('/api/packages', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(backendData)
-      });
-      
-      if (!response.ok) throw new Error('Failed to create package');
-      
-      await fetchPackages(); // Refresh the packages list
-      toast.success('Package created successfully!');
+      await apiClient.put(`/api/users/${selectedUser.id}`, payload);
+      toast.success('User updated successfully');
+      setIsEditUserDialogOpen(false);
+      setSelectedUser(null);
+      fetchUsers();
     } catch (error) {
-      console.error('Error creating package:', error);
-      toast.error('Failed to create package');
+      console.error('Failed to update user:', error);
+      toast.error('Failed to update user');
     }
   };
 
-  const handlePackageUpdate = async (packageId: string, packageData: any) => {
+  const handleResetUserPassword = async (userId: string) => {
     try {
-      // Map is_active to status for backend
-      const backendData = {
-        ...packageData,
-        is_active: packageData.status === 'active'
-      };
-      
-      const response = await fetch(`/api/packages/${packageId}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(backendData)
-      });
-      
-      if (!response.ok) throw new Error('Failed to update package');
-      
-      await fetchPackages(); // Refresh the packages list
-      toast.success('Package updated successfully!');
+      const response = await apiClient.post(`/api/users/${userId}/reset-password`, {}) as any;
+      const token = response?.data?.token || (response as any)?.token;
+      setResetToken(token || '');
+      setIsResetPasswordDialogOpen(true);
+      toast.success('Password reset token generated successfully!');
     } catch (error) {
-      console.error('Error updating package:', error);
-      toast.error('Failed to update package');
+      console.error('Failed to generate reset token:', error);
+      toast.error('Failed to generate reset token');
     }
   };
 
-  const handlePackageDuplicate = async (packageId: string, modifications: any) => {
+  const handleConfirmPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetPasswordForm.newPassword !== resetPasswordForm.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/packages/${packageId}/duplicate`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(modifications)
+      await apiClient.post(`/api/users/${selectedUser?.id}/confirm-reset`, {
+        token: resetToken,
+        newPassword: resetPasswordForm.newPassword
       });
-      
-      if (!response.ok) throw new Error('Failed to duplicate package');
-      
-      await fetchPackages(); // Refresh the packages list
-      toast.success('Package duplicated successfully!');
+      toast.success('Password reset successfully');
+      setIsResetPasswordDialogOpen(false);
+      setResetToken('');
+      setResetPasswordForm({ newPassword: '', confirmPassword: '' });
+      setSelectedUser(null);
     } catch (error) {
-      console.error('Error duplicating package:', error);
-      toast.error('Failed to duplicate package');
+      console.error('Failed to reset password:', error);
+      toast.error('Failed to reset password');
     }
   };
 
-  const handlePackageAssign = async (packageId: string, assignments: { ngo_ids: string[], vendor_ids: string[] }) => {
-    try {
-      const response = await fetch(`/api/packages/${packageId}/assign`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-dev-role': 'admin',
-          'x-dev-user-id': '1'
-        },
-        body: JSON.stringify(assignments)
-      });
-      
-      if (!response.ok) throw new Error('Failed to assign package');
-      
-      // Refresh packages to get updated assignments
-      await fetchPackages();
-      toast.success('Package assignments updated successfully!');
-    } catch (error) {
-      console.error('Error assigning package:', error);
-      toast.error('Failed to assign package');
-    }
+  const openCreateUserDialog = () => {
+    setIsCreateUserDialogOpen(true);
+  };
+
+  const openEditUserDialog = (user: User) => {
+    setSelectedUser(user);
+    setEditUserForm({
+      email: user.email,
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      phone: user.phone || '',
+      role: user.role || 'user'
+    });
+    setIsEditUserDialogOpen(true);
   };
 
   const handleLogout = () => {
-    // Clear any stored tokens
-    localStorage.removeItem('authToken');
-    navigate('/auth');
+    signOut();
+    window.location.href = '/login';
   };
 
   if (authLoading || isLoading) {
@@ -675,7 +573,7 @@ const AdminDashboard = () => {
   }
 
   if (!user) {
-    return null; // Will redirect to auth
+    return null;
   }
 
     return (
@@ -746,95 +644,124 @@ const AdminDashboard = () => {
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="packages" style={{ width: '100%' }}>
+        <Tabs defaultValue="users" style={{ width: '100%' }}>
           <TabsList style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', width: '100%' }}>
-            <TabsTrigger value="packages">Package Management</TabsTrigger>
+            <TabsTrigger value="users">User Management</TabsTrigger>
             <TabsTrigger value="ngos">NGO Management</TabsTrigger>
             <TabsTrigger value="vendors">Vendor Management</TabsTrigger>
-            <TabsTrigger value="users">User Management</TabsTrigger>
+            <TabsTrigger value="packages">Package Management</TabsTrigger>
           </TabsList>
 
-                    {/* Package Management Tab */}
-          <TabsContent value="packages" style={{ marginTop: '1.5rem' }}>
-            <EnhancedPackageManagement
-              packages={packages}
-              ngos={ngos}
-              vendors={vendors}
-              onPackageCreate={handlePackageCreate}
-              onPackageUpdate={handlePackageUpdate}
-              onPackageDuplicate={handlePackageDuplicate}
-              onPackageAssign={handlePackageAssign}
-            />
+          {/* User Management Tab */}
+          <TabsContent value="users" style={{ marginTop: '1.5rem' }}>
+            <Card>
+              <CardHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <CardTitle>User Management</CardTitle>
+                  <Button onClick={openCreateUserDialog}>
+                    <Plus style={{ height: '1rem', width: '1rem', marginRight: '0.5rem' }} />
+                    Create User
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Name</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Email</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Role</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Phone</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.75rem' }}>
+                            {user.first_name} {user.last_name}
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>{user.email}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <Badge variant="outline">{user.role || 'user'}</Badge>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>{user.phone || '-'}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditUserDialog(user)}
+                              >
+                                <Edit style={{ height: '0.875rem', width: '0.875rem' }} />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleResetUserPassword(user.id)}
+                              >
+                                <Key style={{ height: '0.875rem', width: '0.875rem' }} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* NGO Management Tab */}
           <TabsContent value="ngos" style={{ marginTop: '1.5rem' }}>
             <Card>
               <CardHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <CardTitle>NGO Management</CardTitle>
-                <CardDescription>
-                  Manage NGOs and their packages
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div style={{ marginTop: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.125rem', fontWeight: '600' }}>NGOs ({ngos.length})</h3>
-                    <Button onClick={openCreateNGODialog}>
+                  <Button onClick={openCreateNGO}>
                       <Plus style={{ height: '1rem', width: '1rem', marginRight: '0.5rem' }} />
                       Create NGO
                     </Button>
                   </div>
-                  
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                        <TableHead>NGO</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Location</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+              </CardHeader>
+              <CardContent>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Name</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Email</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Status</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {ngos.map((ngo) => (
-                        <TableRow key={ngo.id}>
-                        <TableCell>
-                            <div>
-                              <div style={{ fontWeight: '500' }}>{ngo.name}</div>
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                                {ngo.description}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div style={{ fontSize: '0.875rem' }}>{ngo.email}</div>
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                                {ngo.phone}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>{ngo.city || 'N/A'}</TableCell>
-                          <TableCell>
-                            <Badge variant={ngo.verified ? "default" : "secondary"}>
-                              {ngo.verified ? "Active" : "Inactive"}
+                        <tr key={ngo.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.75rem' }}>{ngo.name}</td>
+                          <td style={{ padding: '0.75rem' }}>{ngo.email}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <Badge variant={ngo.verified ? 'default' : 'secondary'}>
+                              {ngo.verified ? 'Verified' : 'Pending'}
                             </Badge>
-                        </TableCell>
-                                                   <TableCell>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                               <Button variant="ghost" size="sm" onClick={() => handleViewNGO(ngo)}>
-                                 <Eye style={{ height: '1rem', width: '1rem' }} />
+                              <Button variant="outline" size="sm" onClick={() => openViewNGO(ngo)}>
+                                <Eye style={{ height: '0.875rem', width: '0.875rem' }} />
                                </Button>
-                               <Button variant="ghost" size="sm" onClick={() => openEditNGODialog(ngo)}>
-                                 <Edit style={{ height: '1rem', width: '1rem' }} />
+                              {/* NGO editable only from NGO Management, but requirement says no edit here after assignment; keeping only view and delete */}
+                              <Button variant="outline" size="sm" onClick={() => handleDeleteNGO(ngo)}>
+                                <Trash style={{ height: '0.875rem', width: '0.875rem' }} />
                                </Button>
                              </div>
-                           </TableCell>
-                       </TableRow>
+                          </td>
+                        </tr>
                     ))}
-                   </TableBody>
-                </Table>
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
@@ -844,839 +771,584 @@ const AdminDashboard = () => {
           <TabsContent value="vendors" style={{ marginTop: '1.5rem' }}>
               <Card>
               <CardHeader>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <CardTitle>Vendor Management</CardTitle>
-                <CardDescription>
-                  Manage vendors and their services
-                </CardDescription>
-                </CardHeader>
-                <CardContent>
-                <div style={{ marginTop: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.125rem', fontWeight: '600' }}>Vendors ({vendors.length})</h3>
-                    <Button onClick={openCreateVendorDialog}>
+                  <Button onClick={openCreateVendor}>
                       <Plus style={{ height: '1rem', width: '1rem', marginRight: '0.5rem' }} />
                       Create Vendor
                     </Button>
                   </div>
-                  
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Vendor</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Associated NGO</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+                </CardHeader>
+                <CardContent>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Company</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Email</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Status</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {vendors.map((vendor) => (
-                        <TableRow key={vendor.id}>
-                          <TableCell>
-                            <div>
-                              <div style={{ fontWeight: '500' }}>{vendor.company_name}</div>
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                                {vendor.description}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div style={{ fontSize: '0.875rem' }}>{vendor.email}</div>
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                                {vendor.phone}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>{vendor.ngo_name || 'Not assigned'}</TableCell>
-                          <TableCell>
-                            <Badge variant={vendor.verified ? "default" : "secondary"}>
-                              {vendor.verified ? "Active" : "Inactive"}
+                        <tr key={vendor.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.75rem' }}>{vendor.company_name}</td>
+                          <td style={{ padding: '0.75rem' }}>{vendor.email}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <Badge variant={vendor.verified ? 'default' : 'secondary'}>
+                              {vendor.verified ? 'Verified' : 'Pending'}
                               </Badge>
-                          </TableCell>
-                                                     <TableCell>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                               <Button variant="ghost" size="sm" onClick={() => handleViewVendor(vendor)}>
-                                 <Eye style={{ height: '1rem', width: '1rem' }} />
+                              <Button variant="outline" size="sm" onClick={() => openViewVendor(vendor)}>
+                                <Eye style={{ height: '0.875rem', width: '0.875rem' }} />
                                </Button>
-                               <Button variant="ghost" size="sm" onClick={() => openEditVendorDialog(vendor)}>
-                                 <Edit style={{ height: '1rem', width: '1rem' }} />
+                              <Button variant="outline" size="sm" onClick={() => openEditVendor(vendor)}>
+                                <Edit style={{ height: '0.875rem', width: '0.875rem' }} />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleDeleteVendor(vendor)}>
+                                <Trash style={{ height: '0.875rem', width: '0.875rem' }} />
                                </Button>
                              </div>
-                           </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                 </div>
                 </CardContent>
               </Card>
           </TabsContent>
 
-          {/* User Management Tab */}
-          <TabsContent value="users" style={{ marginTop: '1.5rem' }}>
+          {/* Package Management Tab */}
+          <TabsContent value="packages" style={{ marginTop: '1.5rem' }}>
             <Card>
               <CardHeader>
-                  <CardTitle>User Management</CardTitle>
-                <CardDescription>
-                  Manage system users and their roles
-                </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                <div style={{ marginTop: '1rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.125rem', fontWeight: '600' }}>Users ({users.length})</h3>
-                    <Button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <CardTitle>Package Management</CardTitle>
+                  <Button onClick={openCreatePackage}>
                       <Plus style={{ height: '1rem', width: '1rem', marginRight: '0.5rem' }} />
-                      Create User
+                    Create Package
                     </Button>
                   </div>
-                  
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                        <TableHead>User</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {users.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div>
-                              <div style={{ fontWeight: '500' }}>
-                              {user.first_name} {user.last_name}
-                </div>
-                              <div style={{ fontSize: '0.875rem', color: '#6b7280' }}>
-                                {user.phone}
-                              </div>
-                </div>
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                            <Badge variant="outline">{user.role}</Badge>
-                        </TableCell>
-                        <TableCell>
-                            {format(new Date(user.created_at), 'MMM dd, yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <Button variant="ghost" size="sm">
-                                <Edit style={{ height: '1rem', width: '1rem' }} />
+                    </CardHeader>
+                    <CardContent>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Title</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Amount</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Category</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Status</th>
+                        <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '500' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {packages.map((pkg) => (
+                        <tr key={pkg.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <td style={{ padding: '0.75rem' }}>{pkg.title}</td>
+                          <td style={{ padding: '0.75rem' }}>₹{pkg.amount}</td>
+                          <td style={{ padding: '0.75rem' }}>{pkg.category}</td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <Badge variant={pkg.status === 'active' ? 'default' : 'secondary'}>
+                              {pkg.status}
+                            </Badge>
+                          </td>
+                          <td style={{ padding: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <Button variant="outline" size="sm" onClick={() => openViewPackage(pkg)}>
+                                <Eye style={{ height: '0.875rem', width: '0.875rem' }} />
                             </Button>
-                            <Button variant="ghost" size="sm">
-                                <Key style={{ height: '1rem', width: '1rem' }} />
+                              <Button variant="outline" size="sm" onClick={() => openEditPackage(pkg)}>
+                                <Edit style={{ height: '0.875rem', width: '0.875rem' }} />
                             </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleDeletePackage(pkg)}>
+                                <Trash style={{ height: '0.875rem', width: '0.875rem' }} />
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleCopyPackage(pkg)}>Copy</Button>
+                              <Button variant="outline" size="sm" onClick={() => openAssignVendor(pkg)}>Assign NGO & Vendor</Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                          </td>
+                        </tr>
                     ))}
-                  </TableBody>
-                </Table>
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
 
-                {/* Success Message */}
-        <div style={{ 
-          marginTop: '2rem', 
-          padding: '1rem', 
-          backgroundColor: '#dcfce7', 
-          border: '1px solid #22c55e', 
-          borderRadius: '0.5rem',
-          textAlign: 'center'
-        }}>
-          <h3 style={{ color: '#166534', marginBottom: '0.5rem' }}>✅ Application is Working!</h3>
-          <p style={{ color: '#166534', margin: 0 }}>
-            The Admin Dashboard is now fully functional. You can manage NGOs, vendors, packages, and users.
-          </p>
-        </div>
-
-
-
-        {/* NGO Detail Dialog */}
-        <Dialog open={isNGODialogOpen} onOpenChange={setIsNGODialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+        {/* Create User Dialog */}
+        <Dialog open={isCreateUserDialogOpen} onOpenChange={setIsCreateUserDialogOpen}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>NGO Details: {selectedNGO?.name}</DialogTitle>
-              <DialogDescription>View NGO information and associated packages with vendors</DialogDescription>
+              <DialogTitle>Create New User</DialogTitle>
+              <DialogDescription>Add a new user to the system</DialogDescription>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              {selectedNGO && (
-                <div className="space-y-6">
-                  {/* Basic Information */}
-                  <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div>
-                      <Label>Name</Label>
-                      <Input value={selectedNGO.name} readOnly />
+                <Label htmlFor="email">Email</Label>
+                    <Input
+                  id="email"
+                      type="email"
+                  value={createUserForm.email}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+                      required
+                    />
                     </div>
                     <div>
-                      <Label>Email</Label>
-                      <Input value={selectedNGO.email} readOnly />
-                    </div>
+                <Label htmlFor="first_name">First Name</Label>
+                    <Input
+                  id="first_name"
+                  value={createUserForm.first_name}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, first_name: e.target.value })}
+                      required
+                    />
                   </div>
                   <div>
-                    <Label>Description</Label>
-                    <Textarea value={selectedNGO.description || ''} readOnly />
+                <Label htmlFor="last_name">Last Name</Label>
+                    <Input
+                  id="last_name"
+                  value={createUserForm.last_name}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, last_name: e.target.value })}
+                      required
+                    />
                   </div>
                   <div>
-                    <Label>Mission</Label>
-                    <Textarea value={selectedNGO.mission || ''} readOnly />
+                <Label htmlFor="phone">Phone</Label>
+                    <Input
+                  id="phone"
+                  value={createUserForm.phone}
+                  onChange={(e) => setCreateUserForm({ ...createUserForm, phone: e.target.value })}
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Location</Label>
-                      <Input value={selectedNGO.city || 'N/A'} readOnly />
+                <Label htmlFor="role">Role</Label>
+                <Select value={createUserForm.role} onValueChange={(value) => setCreateUserForm({ ...createUserForm, role: value })}>
+                      <SelectTrigger>
+                    <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="vendor">Vendor</SelectItem>
+                    <SelectItem value="ngo">NGO</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
                     </div>
-                    <div>
-                      <Label>Category</Label>
-                      <Input value={selectedNGO.category || 'N/A'} readOnly />
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <Button type="button" variant="outline" onClick={() => setIsCreateUserDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                <Button type="submit">Create User</Button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Phone</Label>
-                      <Input value={selectedNGO.phone || 'Not provided'} readOnly />
-                    </div>
-                    <div>
-                      <Label>Website</Label>
-                      <Input value={selectedNGO.website || 'Not provided'} readOnly />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Registration Number</Label>
-                    <Input value={selectedNGO.registration_number || 'Not provided'} readOnly />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Label>Status</Label>
-                    <Badge variant={selectedNGO.verified ? "default" : "secondary"}>
-                      {selectedNGO.verified ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
+              </form>
+          </DialogContent>
+        </Dialog>
 
-                  {/* Associated Packages Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-3 flex items-center">
-                      <Package className="h-5 w-5 mr-2" />
-                      Associated Packages
-                    </h3>
-                    <div className="space-y-3">
-                      {selectedNGO.packages && selectedNGO.packages.length > 0 ? (
-                        selectedNGO.packages.map((pkg) => (
-                          <div key={pkg.id} className="border rounded-lg p-4 bg-gray-50">
-                            <div className="flex justify-between items-start mb-2">
+        {/* NGO View Dialog */}
+        <Dialog open={isViewNGODialogOpen} onOpenChange={setIsViewNGODialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>NGO Details</DialogTitle>
+            </DialogHeader>
+            {selectedNGO && (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                <div><strong>Name:</strong> {selectedNGO.name}</div>
+                <div><strong>Email:</strong> {selectedNGO.email}</div>
+                <div><strong>Verified:</strong> {selectedNGO.verified ? 'Yes' : 'No'}</div>
+                <div><strong>City/State:</strong> {[selectedNGO.city, selectedNGO.state].filter(Boolean).join(', ')}</div>
+                <div><strong>Mission:</strong> {selectedNGO.mission || '-'}</div>
+                <div><strong>Description:</strong> {selectedNGO.description || '-'}</div>
                               <div>
-                                <h4 className="font-semibold text-blue-600">{pkg.title}</h4>
-                                <p className="text-sm text-gray-600">{pkg.description}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-semibold text-green-600">₹{pkg.amount.toLocaleString()}</div>
-                                <Badge variant="outline" className="text-xs">{pkg.category}</Badge>
-                              </div>
-                            </div>
-                            
-                            {/* Vendors for this package */}
-                            {pkg.vendor_ids && pkg.vendor_ids.length > 0 && (
-                              <div className="mt-3">
-                                <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                                  <Users className="h-4 w-4 mr-1" />
-                                  Assigned Vendors ({pkg.vendor_ids.length}):
-                                </h5>
-                                <div className="flex flex-wrap gap-2">
-                                  {pkg.vendor_names?.map((vendorName, index) => (
-                                    <Badge key={index} variant="secondary" className="text-xs">
-                                      {vendorName}
-                                    </Badge>
-                                  ))}
+                  <strong>Assigned Packages:</strong>
+                  <ul style={{ marginTop: 6 }}>
+                    {ngoPackages.map((p) => (
+                      <li key={p.id}>- {p.title} (₹{p.amount})</li>
+                    ))}
+                    {ngoPackages.length === 0 && <div style={{ color: '#6b7280' }}>No packages assigned</div>}
+                  </ul>
                                 </div>
                               </div>
                             )}
-                            
-                            {(!pkg.vendor_ids || pkg.vendor_ids.length === 0) && (
-                              <div className="mt-3">
-                                <p className="text-sm text-gray-500 italic">
-                                  No vendors assigned to this package
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-6 text-gray-500">
-                          <Package className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p>No packages associated with this NGO</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </DialogContent>
         </Dialog>
 
-        {/* Create NGO Dialog */}
+        {/* NGO Create/Edit Dialogs */}
         <Dialog open={isCreateNGODialogOpen} onOpenChange={setIsCreateNGODialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New NGO</DialogTitle>
-              <DialogDescription>Add a new NGO to the system.</DialogDescription>
+              <DialogTitle>Create NGO</DialogTitle>
+              <DialogDescription>Add a new NGO</DialogDescription>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              <form onSubmit={handleCreateNGO} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleCreateNGO} style={{ display: 'grid', gap: '0.75rem' }}>
                   <div>
-                    <Label htmlFor="ngo-name">Name *</Label>
-                    <Input
-                      id="ngo-name"
-                      value={ngoFormData.name}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, name: e.target.value })}
-                      required
-                    />
+                <Label>Name</Label>
+                <Input value={ngoForm.name} onChange={(e) => setNGOForm({ ...ngoForm, name: e.target.value })} required />
                   </div>
                   <div>
-                    <Label htmlFor="ngo-email">Email *</Label>
-                    <Input
-                      id="ngo-email"
-                      type="email"
-                      value={ngoFormData.email}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="ngo-location">Location *</Label>
-                    <Input
-                      id="ngo-location"
-                      value={ngoFormData.location}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, location: e.target.value })}
-                      required
-                    />
+                <Label>Email</Label>
+                <Input type="email" value={ngoForm.email} onChange={(e) => setNGOForm({ ...ngoForm, email: e.target.value })} required />
                   </div>
                   <div>
-                    <Label htmlFor="ngo-category">Category *</Label>
-                    <Select value={ngoFormData.category} onValueChange={(value) => setNGOFormData({ ...ngoFormData, category: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Education">Education</SelectItem>
-                        <SelectItem value="Health">Health</SelectItem>
-                        <SelectItem value="Food">Food</SelectItem>
-                        <SelectItem value="Shelter">Shelter</SelectItem>
-                        <SelectItem value="Others">Others</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <Label>Mission</Label>
+                <Input value={ngoForm.mission} onChange={(e) => setNGOForm({ ...ngoForm, mission: e.target.value })} />
                   </div>
-                </div>
-
+                  <div>
+                <Label>Description</Label>
+                <Input value={ngoForm.description} onChange={(e) => setNGOForm({ ...ngoForm, description: e.target.value })} />
+                  </div>
                 <div>
-                  <Label htmlFor="ngo-description">Description</Label>
-                  <Textarea
-                    id="ngo-description"
-                    value={ngoFormData.description}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, description: e.target.value })}
-                    rows={3}
-                    placeholder="Brief description of the NGO"
-                  />
+                <Label>Location (City, State)</Label>
+                <Input value={ngoForm.location} onChange={(e) => setNGOForm({ ...ngoForm, location: e.target.value })} />
                 </div>
-
                 <div>
-                  <Label htmlFor="ngo-mission">Mission</Label>
-                  <Textarea
-                    id="ngo-mission"
-                    value={ngoFormData.mission}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, mission: e.target.value })}
-                    rows={3}
-                    placeholder="NGO's mission statement"
-                  />
+                <Label>Phone</Label>
+                <Input value={ngoForm.phone} onChange={(e) => setNGOForm({ ...ngoForm, phone: e.target.value })} />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="ngo-phone">Phone</Label>
-                    <Input
-                      id="ngo-phone"
-                      value={ngoFormData.phone}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, phone: e.target.value })}
-                      placeholder="Contact phone number"
-                    />
+                <Label>Website URL</Label>
+                <Input value={ngoForm.website_url} onChange={(e) => setNGOForm({ ...ngoForm, website_url: e.target.value })} />
                   </div>
                   <div>
-                    <Label htmlFor="ngo-website">Website URL</Label>
-                    <Input
-                      id="ngo-website"
-                      value={ngoFormData.website_url}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, website_url: e.target.value })}
-                      placeholder="https://example.com"
-                    />
+                <Label>Registration Number</Label>
+                <Input value={ngoForm.registration_number} onChange={(e) => setNGOForm({ ...ngoForm, registration_number: e.target.value })} />
                   </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="ngo-registration">Registration Number</Label>
-                  <Input
-                    id="ngo-registration"
-                    value={ngoFormData.registration_number}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, registration_number: e.target.value })}
-                    placeholder="Official registration number"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="ngo-active"
-                    checked={ngoFormData.is_active}
-                    onCheckedChange={(checked) => setNGOFormData({ ...ngoFormData, is_active: checked as boolean })}
-                  />
-                  <Label htmlFor="ngo-active">Active</Label>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateNGODialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Create NGO
-                  </Button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsCreateNGODialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Create</Button>
                 </div>
               </form>
-            </div>
           </DialogContent>
         </Dialog>
 
-        {/* Edit NGO Dialog */}
         <Dialog open={isEditNGODialogOpen} onOpenChange={setIsEditNGODialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit NGO</DialogTitle>
-              <DialogDescription>Edit existing NGO details.</DialogDescription>
+              <DialogDescription>Update NGO details</DialogDescription>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              <form onSubmit={handleUpdateNGO} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleUpdateNGO} style={{ display: 'grid', gap: '0.75rem' }}>
                   <div>
-                    <Label htmlFor="edit-ngo-name">Name *</Label>
-                    <Input
-                      id="edit-ngo-name"
-                      value={ngoFormData.name}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, name: e.target.value })}
-                      required
-                    />
+                <Label>Name</Label>
+                <Input value={ngoForm.name} onChange={(e) => setNGOForm({ ...ngoForm, name: e.target.value })} required />
                   </div>
                   <div>
-                    <Label htmlFor="edit-ngo-email">Email *</Label>
-                    <Input
-                      id="edit-ngo-email"
-                      type="email"
-                      value={ngoFormData.email}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-ngo-location">Location *</Label>
-                    <Input
-                      id="edit-ngo-location"
-                      value={ngoFormData.location}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, location: e.target.value })}
-                      required
-                    />
+                <Label>Email</Label>
+                <Input type="email" value={ngoForm.email} onChange={(e) => setNGOForm({ ...ngoForm, email: e.target.value })} required />
                   </div>
                   <div>
-                    <Label htmlFor="edit-ngo-category">Category *</Label>
-                    <Select value={ngoFormData.category} onValueChange={(value) => setNGOFormData({ ...ngoFormData, category: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Education">Education</SelectItem>
-                        <SelectItem value="Health">Health</SelectItem>
-                        <SelectItem value="Food">Food</SelectItem>
-                        <SelectItem value="Shelter">Shelter</SelectItem>
-                        <SelectItem value="Others">Others</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <Label>Mission</Label>
+                <Input value={ngoForm.mission} onChange={(e) => setNGOForm({ ...ngoForm, mission: e.target.value })} />
                   </div>
-                </div>
-
+                  <div>
+                <Label>Description</Label>
+                <Input value={ngoForm.description} onChange={(e) => setNGOForm({ ...ngoForm, description: e.target.value })} />
+                  </div>
                 <div>
-                  <Label htmlFor="edit-ngo-description">Description</Label>
-                  <Textarea
-                    id="edit-ngo-description"
-                    value={ngoFormData.description}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, description: e.target.value })}
-                    rows={3}
-                    placeholder="Brief description of the NGO"
-                  />
+                <Label>Location (City, State)</Label>
+                <Input value={ngoForm.location} onChange={(e) => setNGOForm({ ...ngoForm, location: e.target.value })} />
                 </div>
-
                 <div>
-                  <Label htmlFor="edit-ngo-mission">Mission</Label>
-                  <Textarea
-                    id="edit-ngo-mission"
-                    value={ngoFormData.mission}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, mission: e.target.value })}
-                    rows={3}
-                    placeholder="NGO's mission statement"
-                  />
+                <Label>Phone</Label>
+                <Input value={ngoForm.phone} onChange={(e) => setNGOForm({ ...ngoForm, phone: e.target.value })} />
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="edit-ngo-phone">Phone</Label>
-                    <Input
-                      id="edit-ngo-phone"
-                      value={ngoFormData.phone}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, phone: e.target.value })}
-                      placeholder="Contact phone number"
-                    />
+                <Label>Website URL</Label>
+                <Input value={ngoForm.website_url} onChange={(e) => setNGOForm({ ...ngoForm, website_url: e.target.value })} />
                   </div>
                   <div>
-                    <Label htmlFor="edit-ngo-website">Website URL</Label>
-                    <Input
-                      id="edit-ngo-website"
-                      value={ngoFormData.website_url}
-                      onChange={(e) => setNGOFormData({ ...ngoFormData, website_url: e.target.value })}
-                      placeholder="https://example.com"
-                    />
+                <Label>Registration Number</Label>
+                <Input value={ngoForm.registration_number} onChange={(e) => setNGOForm({ ...ngoForm, registration_number: e.target.value })} />
                   </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsEditNGODialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Update</Button>
                 </div>
-
-                <div>
-                  <Label htmlFor="edit-ngo-registration">Registration Number</Label>
-                  <Input
-                    id="edit-ngo-registration"
-                    value={ngoFormData.registration_number}
-                    onChange={(e) => setNGOFormData({ ...ngoFormData, registration_number: e.target.value })}
-                    placeholder="Official registration number"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="edit-ngo-active"
-                    checked={ngoFormData.is_active}
-                    onCheckedChange={(checked) => setNGOFormData({ ...ngoFormData, is_active: checked as boolean })}
-                  />
-                  <Label htmlFor="edit-ngo-active">Active</Label>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setIsEditNGODialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Update NGO
-                  </Button>
-                </div>
-              </form>
-            </div>
+            </form>
           </DialogContent>
         </Dialog>
 
-        {/* Create Vendor Dialog */}
-        <Dialog open={isCreateVendorDialogOpen} onOpenChange={setIsCreateVendorDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+        {/* Vendor View Dialog */}
+        <Dialog open={isViewVendorDialogOpen} onOpenChange={setIsViewVendorDialogOpen}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Vendor</DialogTitle>
-              <DialogDescription>Add a new vendor to the system.</DialogDescription>
+              <DialogTitle>Vendor Details</DialogTitle>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              <form onSubmit={handleCreateVendor} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="vendor-company-name">Company Name *</Label>
-                    <Input
-                      id="vendor-company-name"
-                      value={vendorFormData.company_name}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, company_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vendor-email">Email *</Label>
-                    <Input
-                      id="vendor-email"
-                      type="email"
-                      value={vendorFormData.email}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, email: e.target.value })}
-                      required
-                    />
-                  </div>
+            {selectedVendor && (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                <div><strong>Company:</strong> {selectedVendor.company_name}</div>
+                <div><strong>Email:</strong> {selectedVendor.email}</div>
+                <div><strong>Phone:</strong> {selectedVendor.phone}</div>
+                <div><strong>Address:</strong> {selectedVendor.address || '-'}</div>
+                <div><strong>Type:</strong> {selectedVendor.business_type || '-'}</div>
+                <div><strong>Verified:</strong> {selectedVendor.verified ? 'Yes' : 'No'}</div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="vendor-phone">Phone</Label>
-                    <Input
-                      id="vendor-phone"
-                      value={vendorFormData.phone}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, phone: e.target.value })}
-                      placeholder="Contact phone number"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="vendor-business-type">Business Type</Label>
-                    <Input
-                      id="vendor-business-type"
-                      value={vendorFormData.business_type}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, business_type: e.target.value })}
-                      placeholder="e.g., Logistics, Manufacturing"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="vendor-description">Description</Label>
-                  <Textarea
-                    id="vendor-description"
-                    value={vendorFormData.description}
-                    onChange={(e) => setVendorFormData({ ...vendorFormData, description: e.target.value })}
-                    rows={3}
-                    placeholder="Brief description of the vendor"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="vendor-address">Address</Label>
-                  <Textarea
-                    id="vendor-address"
-                    value={vendorFormData.address}
-                    onChange={(e) => setVendorFormData({ ...vendorFormData, address: e.target.value })}
-                    rows={3}
-                    placeholder="Full address"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="vendor-active"
-                    checked={vendorFormData.is_active}
-                    onCheckedChange={(checked) => setVendorFormData({ ...vendorFormData, is_active: checked as boolean })}
-                  />
-                  <Label htmlFor="vendor-active">Active</Label>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setIsCreateVendorDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Create Vendor
-                  </Button>
-                </div>
-              </form>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
 
-        {/* Edit Vendor Dialog */}
+        {/* Vendor Create/Edit Dialogs */}
+        <Dialog open={isCreateVendorDialogOpen} onOpenChange={setIsCreateVendorDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Vendor</DialogTitle>
+              <DialogDescription>Add a new vendor</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateVendor} style={{ display: 'grid', gap: '0.75rem' }}>
+              <div><Label>Company Name</Label><Input value={vendorForm.company_name} onChange={(e) => setVendorForm({ ...vendorForm, company_name: e.target.value })} required /></div>
+              <div><Label>Email</Label><Input type="email" value={vendorForm.email} onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })} required /></div>
+              <div><Label>Phone</Label><Input value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })} /></div>
+              <div><Label>Address</Label><Input value={vendorForm.address} onChange={(e) => setVendorForm({ ...vendorForm, address: e.target.value })} /></div>
+              <div><Label>Description</Label><Input value={vendorForm.description} onChange={(e) => setVendorForm({ ...vendorForm, description: e.target.value })} /></div>
+              <div><Label>Business Type</Label><Input value={vendorForm.business_type} onChange={(e) => setVendorForm({ ...vendorForm, business_type: e.target.value })} /></div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsCreateVendorDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Create</Button>
+                </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={isEditVendorDialogOpen} onOpenChange={setIsEditVendorDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden">
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Vendor</DialogTitle>
-              <DialogDescription>Edit existing vendor details.</DialogDescription>
+              <DialogDescription>Update vendor details</DialogDescription>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              <form onSubmit={handleUpdateVendor} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-vendor-company-name">Company Name *</Label>
-                    <Input
-                      id="edit-vendor-company-name"
-                      value={vendorFormData.company_name}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, company_name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-vendor-email">Email *</Label>
-                    <Input
-                      id="edit-vendor-email"
-                      type="email"
-                      value={vendorFormData.email}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-vendor-phone">Phone</Label>
-                    <Input
-                      id="edit-vendor-phone"
-                      value={vendorFormData.phone}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, phone: e.target.value })}
-                      placeholder="Contact phone number"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-vendor-business-type">Business Type</Label>
-                    <Input
-                      id="edit-vendor-business-type"
-                      value={vendorFormData.business_type}
-                      onChange={(e) => setVendorFormData({ ...vendorFormData, business_type: e.target.value })}
-                      placeholder="e.g., Logistics, Manufacturing"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-vendor-description">Description</Label>
-                  <Textarea
-                    id="edit-vendor-description"
-                    value={vendorFormData.description}
-                    onChange={(e) => setVendorFormData({ ...vendorFormData, description: e.target.value })}
-                    rows={3}
-                    placeholder="Brief description of the vendor"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-vendor-address">Address</Label>
-                  <Textarea
-                    id="edit-vendor-address"
-                    value={vendorFormData.address}
-                    onChange={(e) => setVendorFormData({ ...vendorFormData, address: e.target.value })}
-                    rows={3}
-                    placeholder="Full address"
-                  />
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="edit-vendor-active"
-                    checked={vendorFormData.is_active}
-                    onCheckedChange={(checked) => setVendorFormData({ ...vendorFormData, is_active: checked as boolean })}
-                  />
-                  <Label htmlFor="edit-vendor-active">Active</Label>
-                </div>
-
-                <div className="flex justify-end space-x-3 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setIsEditVendorDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                    Update Vendor
-                  </Button>
+            <form onSubmit={handleUpdateVendor} style={{ display: 'grid', gap: '0.75rem' }}>
+              <div><Label>Company Name</Label><Input value={vendorForm.company_name} onChange={(e) => setVendorForm({ ...vendorForm, company_name: e.target.value })} required /></div>
+              <div><Label>Email</Label><Input type="email" value={vendorForm.email} onChange={(e) => setVendorForm({ ...vendorForm, email: e.target.value })} required /></div>
+              <div><Label>Phone</Label><Input value={vendorForm.phone} onChange={(e) => setVendorForm({ ...vendorForm, phone: e.target.value })} /></div>
+              <div><Label>Address</Label><Input value={vendorForm.address} onChange={(e) => setVendorForm({ ...vendorForm, address: e.target.value })} /></div>
+              <div><Label>Description</Label><Input value={vendorForm.description} onChange={(e) => setVendorForm({ ...vendorForm, description: e.target.value })} /></div>
+              <div><Label>Business Type</Label><Input value={vendorForm.business_type} onChange={(e) => setVendorForm({ ...vendorForm, business_type: e.target.value })} /></div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsEditVendorDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Update</Button>
                 </div>
               </form>
-            </div>
           </DialogContent>
         </Dialog>
 
-        {/* Vendor Detail Dialog */}
-        <Dialog open={isVendorDialogOpen} onOpenChange={setIsVendorDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+        {/* Package View Dialog */}
+        <Dialog open={isViewPackageDialogOpen} onOpenChange={setIsViewPackageDialogOpen}>
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle>Vendor Details: {selectedVendor?.company_name}</DialogTitle>
-              <DialogDescription>View vendor information and served (NGO,Package) pairs</DialogDescription>
+              <DialogTitle>Package Details</DialogTitle>
             </DialogHeader>
-            <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-              {selectedVendor && (
-                <div className="space-y-6">
-                  {/* Basic Information */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Company Name</Label>
-                      <Input value={selectedVendor.company_name} readOnly />
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <Input value={selectedVendor.email} readOnly />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Description</Label>
-                    <Textarea value={selectedVendor.description || ''} readOnly />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Phone</Label>
-                      <Input value={selectedVendor.phone || 'Not provided'} readOnly />
-                    </div>
-                    <div>
-                      <Label>Business Type</Label>
-                      <Input value={selectedVendor.business_type || 'Not specified'} readOnly />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>Address</Label>
-                    <Textarea value={selectedVendor.address || 'Not provided'} readOnly />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Label>Status</Label>
-                    <Badge variant={selectedVendor.verified ? "default" : "secondary"}>
-                      {selectedVendor.verified ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-
-                  {/* Served (NGO,Package) Pairs Section */}
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-3 flex items-center">
-                      <Package className="h-5 w-5 mr-2" />
-                      Served (NGO,Package) Pairs
-                    </h3>
-                    <div className="space-y-3">
-                      {selectedVendor.served_pairs && selectedVendor.served_pairs.length > 0 ? (
-                        selectedVendor.served_pairs.map((pair, index) => (
-                          <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <h4 className="font-semibold text-blue-600">{pair.package_title}</h4>
-                                <p className="text-sm text-gray-600">Package ID: {pair.package_id}</p>
-                              </div>
-                              <div className="text-right">
-                                <div className="font-semibold text-green-600">₹{pair.package_amount.toLocaleString()}</div>
-                                <Badge variant="outline" className="text-xs">Package</Badge>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-3">
-                              <h5 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                                <Building className="h-4 w-4 mr-1" />
-                                Associated NGO:
-                              </h5>
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="secondary" className="text-xs">
-                                  {pair.ngo_name}
-                                </Badge>
-                                <span className="text-xs text-gray-500">(ID: {pair.ngo_id})</span>
-                              </div>
-                            </div>
-                            
-                            <div className="mt-2 text-xs text-gray-500">
-                              Assigned: {new Date(pair.assigned_at).toLocaleDateString()}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-6 text-gray-500">
-                          <Package className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                          <p>No (NGO,Package) pairs served by this vendor</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+            {selectedPackageRow && (
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                <div><strong>Title:</strong> {selectedPackageRow.title}</div>
+                <div><strong>Amount:</strong> ₹{selectedPackageRow.amount}</div>
+                <div><strong>Category:</strong> {selectedPackageRow.category}</div>
+                <div><strong>Status:</strong> {selectedPackageRow.status}</div>
+                <div><strong>Description:</strong> {selectedPackageRow.description || '-'}</div>
             </div>
+            )}
           </DialogContent>
         </Dialog>
 
+        {/* Package Create/Edit Dialogs */}
+        <Dialog open={isCreatePackageDialogOpen} onOpenChange={setIsCreatePackageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create Package</DialogTitle>
+              <DialogDescription>Add a new package</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreatePackage} style={{ display: 'grid', gap: '0.75rem' }}>
+              <div><Label>Title</Label><Input value={packageForm.title} onChange={(e) => setPackageForm({ ...packageForm, title: e.target.value })} required /></div>
+              <div><Label>Description</Label><Input value={packageForm.description} onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })} /></div>
+              <div><Label>Amount</Label><Input type="number" min={0} value={packageForm.amount} onChange={(e) => setPackageForm({ ...packageForm, amount: Number(e.target.value) })} required /></div>
+              <div><Label>Category</Label><Input value={packageForm.category} onChange={(e) => setPackageForm({ ...packageForm, category: e.target.value })} /></div>
+                  <div>
+                <Label>NGO</Label>
+                <select value={packageForm.ngo_id} onChange={(e) => setPackageForm({ ...packageForm, ngo_id: e.target.value })} style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8 }} required>
+                  <option value="" disabled>Select NGO</option>
+                  {ngos.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </select>
+                  </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsCreatePackageDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Create</Button>
+                  </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Unified Assign NGO & Vendor Dialog */}
+        <Dialog open={isAssignVendorDialogOpen} onOpenChange={setIsAssignVendorDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign NGO & Vendor</DialogTitle>
+              <DialogDescription>NGO is required. Vendor is optional.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAssignVendor} style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div>
+                <Label>NGO</Label>
+                <select value={assignVendorNGOId} onChange={(e) => setAssignVendorNGOId(e.target.value)} required style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8 }}>
+                  <option value="" disabled>Select NGO</option>
+                  {ngos.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </select>
+                  </div>
+                  <div>
+                <Label>Vendor</Label>
+                <VendorSelect
+                  ngoId={assignVendorNGOId}
+                  packageId={selectedPackageForAssign?.id || ''}
+                  value={assignVendorId}
+                  onChange={setAssignVendorId}
+                    />
+                  </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsAssignVendorDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Assign</Button>
+                </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditPackageDialogOpen} onOpenChange={setIsEditPackageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Package</DialogTitle>
+              <DialogDescription>Update package details</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdatePackage} style={{ display: 'grid', gap: '0.75rem' }}>
+              <div><Label>Title</Label><Input value={packageForm.title} onChange={(e) => setPackageForm({ ...packageForm, title: e.target.value })} required /></div>
+              <div><Label>Description</Label><Input value={packageForm.description} onChange={(e) => setPackageForm({ ...packageForm, description: e.target.value })} /></div>
+              <div><Label>Amount</Label><Input type="number" min={0} value={packageForm.amount} onChange={(e) => setPackageForm({ ...packageForm, amount: Number(e.target.value) })} required /></div>
+              <div><Label>Category</Label><Input value={packageForm.category} onChange={(e) => setPackageForm({ ...packageForm, category: e.target.value })} /></div>
+                <div>
+                <Label>NGO</Label>
+                <select value={packageForm.ngo_id} onChange={(e) => setPackageForm({ ...packageForm, ngo_id: e.target.value })} style={{ width: '100%', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8 }} required>
+                  <option value="" disabled>Select NGO</option>
+                  {ngos.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </select>
+                </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                <Button type="button" variant="outline" onClick={() => setIsEditPackageDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Update</Button>
+                </div>
+              </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User</DialogTitle>
+              <DialogDescription>Update user information</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div>
+                <Label htmlFor="edit_email">Email</Label>
+                    <Input
+                  id="edit_email"
+                  type="email"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                <Label htmlFor="edit_first_name">First Name</Label>
+                    <Input
+                  id="edit_first_name"
+                  value={editUserForm.first_name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, first_name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                <Label htmlFor="edit_last_name">Last Name</Label>
+                    <Input
+                  id="edit_last_name"
+                  value={editUserForm.last_name}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, last_name: e.target.value })}
+                  required
+                    />
+                  </div>
+                  <div>
+                <Label htmlFor="edit_phone">Phone</Label>
+                    <Input
+                  id="edit_phone"
+                  value={editUserForm.phone}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                    />
+                  </div>
+                <div>
+                <Label htmlFor="edit_role">Role</Label>
+                <Select value={editUserForm.role} onValueChange={(value) => setEditUserForm({ ...editUserForm, role: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="vendor">Vendor</SelectItem>
+                    <SelectItem value="ngo">NGO</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+                </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <Button type="button" variant="outline" onClick={() => setIsEditUserDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                <Button type="submit">Update User</Button>
+                </div>
+              </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset Password</DialogTitle>
+              <DialogDescription>Enter new password for the user</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleConfirmPasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div>
+                <Label htmlFor="new_password">New Password</Label>
+                    <Input
+                  id="new_password"
+                  type="password"
+                  value={resetPasswordForm.newPassword}
+                  onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, newPassword: e.target.value })}
+                      required
+                    />
+                    </div>
+                    <div>
+                <Label htmlFor="confirm_password">Confirm Password</Label>
+                    <Input
+                  id="confirm_password"
+                  type="password"
+                  value={resetPasswordForm.confirmPassword}
+                  onChange={(e) => setResetPasswordForm({ ...resetPasswordForm, confirmPassword: e.target.value })}
+                      required
+                    />
+                    </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <Button type="button" variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                <Button type="submit">Reset Password</Button>
+                  </div>
+              </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

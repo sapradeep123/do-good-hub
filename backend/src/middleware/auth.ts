@@ -11,6 +11,7 @@ export function attachUser(req: Request, _res: Response, next: NextFunction) {
       // Map your real payload fields here
       req.user = {
         id: payload.sub ?? payload.id,
+        userId: payload.userId ?? payload.id,
         role: payload.role ?? 'user',
         ngoId: payload.ngoId ?? null,
         vendorId: payload.vendorId ?? null,

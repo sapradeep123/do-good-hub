@@ -75,7 +75,13 @@ const Dashboard = () => {
         return;
       }
 
-      // If no specific role or role is 'user', stay on regular dashboard
+      if (user?.role === 'user') {
+        // User is a regular user, redirect to user dashboard
+        navigate("/user-dashboard");
+        return;
+      }
+
+      // If no specific role, stay on regular dashboard
       // This handles regular donors/users
 
       // User is a regular user, fetch their data

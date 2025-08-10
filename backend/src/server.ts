@@ -18,6 +18,7 @@ import packageRoutes from './routes/packages';
 import donationRoutes from './routes/donations';
 import transactionRoutes from './routes/transactions';
 import ticketRoutes from './routes/tickets';
+import paymentsRouter from './routes/payments';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -99,6 +100,7 @@ app.use('/api/packages', packageRoutes);
 app.use('/api/donations', donationRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/payments', paymentsRouter);
 
 // API documentation
 app.get('/api', (req, res) => {
@@ -113,7 +115,8 @@ app.get('/api', (req, res) => {
       packages: '/api/packages',
       donations: '/api/donations',
       transactions: '/api/transactions',
-      tickets: '/api/tickets'
+      tickets: '/api/tickets',
+      payments: '/api/payments'
     }
   });
 });

@@ -11,55 +11,65 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
-import { Package, FileText, Plus, Eye, Upload } from "lucide-react";
+import { Package, FileText, Plus, Eye, Upload, Calendar, DollarSign, Truck } from "lucide-react";
 import { format } from "date-fns";
 
-interface PurchaseOrder {
+interface VendorAssignment {
   id: string;
-  po_number: string;
   vendor_id: string;
-  ngo_id: string;
   package_id: string;
-  donation_id: string;
-  total_amount: number;
-  status: string;
-  issued_date: string;
-  expected_delivery_date?: string;
-  created_at: string;
-  ngo_name?: string;
-  package_title?: string;
+  ngo_id: string;
+  assigned_at: string;
+  delivery_date?: string;
+  status: 'pending' | 'in_progress' | 'delivered' | 'cancelled';
+  payment_status: 'pending' | 'paid' | 'overdue';
+  package_title: string;
+  package_amount: number;
+  ngo_name: string;
+  ngo_contact?: string;
+  ngo_address?: string;
+  notes?: string;
 }
 
-interface VendorInvoice {
+interface VendorPackage {
   id: string;
-  purchase_order_id: string;
-  vendor_id: string;
-  invoice_number: string;
-  gst_number?: string;
-  invoice_type: string;
-  invoice_amount: number;
-  tax_amount: number;
-  total_amount: number;
-  invoice_date: string;
-  delivery_date?: string;
-  items?: any;
-  notes?: string;
+  title: string;
+  description?: string;
+  amount: number;
+  category: string;
   status: string;
   created_at: string;
-  po_number?: string;
+  assignments?: VendorAssignment[];
+}
+
+interface VendorNGO {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  assignments?: VendorAssignment[];
 }
 
 const VendorDashboard = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const [isVendor, setIsVendor] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [invoices, setInvoices] = useState<VendorInvoice[]>([]);
-  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
-  const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [assignments, setAssignments] = useState<VendorAssignment[]>([]);
+  const [packages, setPackages] = useState<VendorPackage[]>([]);
+  const [ngos, setNGOs] = useState<VendorNGO[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<VendorAssignment | null>(null);
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+  const [updateForm, setUpdateForm] = useState({
+    status: '',
+    delivery_date: '',
+    notes: ''
+  });
 
   useEffect(() => {
     if (!loading) {
@@ -74,22 +84,13 @@ const VendorDashboard = () => {
         return;
       }
 
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
-
-      if (roleData?.role !== "vendor") {
+      if (user.role !== "vendor") {
+        toast.error("Access denied. Vendor privileges required.");
         navigate("/dashboard");
         return;
       }
 
-      setIsVendor(true);
-      await Promise.all([
-        fetchPurchaseOrders(),
-        fetchInvoices()
-      ]);
+      await fetchVendorData();
     } catch (error) {
       console.error("Error checking vendor role:", error);
       navigate("/auth");
@@ -98,59 +99,102 @@ const VendorDashboard = () => {
     }
   };
 
-  const fetchPurchaseOrders = async () => {
+  const fetchVendorData = async () => {
     try {
-      const { data, error } = await supabase
-        .from("purchase_orders")
-        .select(`
-          *,
-          ngos!purchase_orders_ngo_id_fkey(name),
-          packages!purchase_orders_package_id_fkey(title)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const ordersWithNames = data?.map(order => ({
-        ...order,
-        ngo_name: order.ngos?.name || '',
-        package_title: order.packages?.title || ''
-      })) || [];
-
-      setPurchaseOrders(ordersWithNames);
+      await Promise.all([
+        fetchAssignments(),
+        fetchPackages(),
+        fetchNGOs()
+      ]);
     } catch (error) {
-      console.error("Error fetching purchase orders:", error);
-      toast.error("Failed to fetch purchase orders");
+      console.error("Error fetching vendor data:", error);
+      toast.error("Failed to fetch vendor data");
     }
   };
 
-  const fetchInvoices = async () => {
+  const fetchAssignments = async () => {
     try {
-      const { data, error } = await supabase
-        .from("vendor_invoices")
-        .select(`
-          *,
-          purchase_orders!vendor_invoices_purchase_order_id_fkey(po_number)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const invoicesWithPO = data?.map(invoice => ({
-        ...invoice,
-        po_number: invoice.purchase_orders?.po_number || ''
-      })) || [];
-
-      setInvoices(invoicesWithPO);
+      const response = await apiClient.get('/api/vendors/assignments') as any;
+      const assignments = Array.isArray(response) ? response : (response.data || []);
+      setAssignments(assignments);
     } catch (error) {
-      console.error("Error fetching invoices:", error);
-      toast.error("Failed to fetch invoices");
+      console.error("Error fetching assignments:", error);
+      toast.error("Failed to fetch assignments");
     }
   };
 
-  const openCreateInvoiceDialog = (po: PurchaseOrder) => {
-    setSelectedPO(po);
-    setIsCreateInvoiceOpen(true);
+  const fetchPackages = async () => {
+    try {
+      const response = await apiClient.get('/api/vendors/packages') as any;
+      const packages = Array.isArray(response) ? response : (response.data || []);
+      setPackages(packages);
+    } catch (error) {
+      console.error("Error fetching packages:", error);
+      toast.error("Failed to fetch packages");
+    }
+  };
+
+  const fetchNGOs = async () => {
+    try {
+      const response = await apiClient.get('/api/vendors/ngos') as any;
+      const ngos = Array.isArray(response) ? response : (response.data || []);
+      setNGOs(ngos);
+    } catch (error) {
+      console.error("Error fetching NGOs:", error);
+      toast.error("Failed to fetch NGOs");
+    }
+  };
+
+  const handleUpdateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAssignment) return;
+
+    try {
+      const response = await apiClient.put(`/api/vendors/assignments/${selectedAssignment.id}`, updateForm) as any;
+      
+      if (response.success) {
+        await fetchAssignments();
+        setIsUpdateDialogOpen(false);
+        setSelectedAssignment(null);
+        toast.success('Assignment updated successfully!');
+      } else {
+        throw new Error(response.message || 'Failed to update assignment');
+      }
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update assignment');
+    }
+  };
+
+  const openUpdateDialog = (assignment: VendorAssignment) => {
+    setSelectedAssignment(assignment);
+    setUpdateForm({
+      status: assignment.status,
+      delivery_date: assignment.delivery_date || '',
+      notes: assignment.notes || ''
+    });
+    setIsUpdateDialogOpen(true);
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+      in_progress: { color: 'bg-blue-100 text-blue-800', label: 'In Progress' },
+      delivered: { color: 'bg-green-100 text-green-800', label: 'Delivered' },
+      cancelled: { color: 'bg-red-100 text-red-800', label: 'Cancelled' }
+    };
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    return <Badge className={config.color}>{config.label}</Badge>;
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const statusConfig = {
+      pending: { color: 'bg-yellow-100 text-yellow-800', label: 'Pending' },
+      paid: { color: 'bg-green-100 text-green-800', label: 'Paid' },
+      overdue: { color: 'bg-red-100 text-red-800', label: 'Overdue' }
+    };
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
+    return <Badge className={config.color}>{config.label}</Badge>;
   };
 
   if (loading || isLoading) {
@@ -164,10 +208,6 @@ const VendorDashboard = () => {
     );
   }
 
-  if (!isVendor) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -176,99 +216,120 @@ const VendorDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Vendor Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage your purchase orders and invoices
+            Manage your package deliveries and track payment status
           </p>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
+              <CardTitle className="text-sm font-medium">Active Assignments</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {purchaseOrders.filter(po => po.status === 'pending').length}
+                {assignments.filter(a => a.status === 'pending' || a.status === 'in_progress').length}
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Total Packages</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{purchaseOrders.length}</div>
+              <div className="text-2xl font-bold">{packages.length}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Submitted Invoices</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Partner NGOs</CardTitle>
+              <Truck className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{invoices.length}</div>
+              <div className="text-2xl font-bold">{ngos.length}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {assignments.filter(a => a.payment_status === 'pending').length}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="orders" className="space-y-6">
+        <Tabs defaultValue="assignments" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="orders">Purchase Orders</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="assignments">Package Assignments</TabsTrigger>
+            <TabsTrigger value="packages">My Packages</TabsTrigger>
+            <TabsTrigger value="ngos">Partner NGOs</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="orders" className="space-y-4">
+          <TabsContent value="assignments" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Purchase Orders</CardTitle>
-                <CardDescription>Orders assigned to your company</CardDescription>
+                <CardTitle>Package Assignments</CardTitle>
+                <CardDescription>
+                  Track your package deliveries and update status
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>PO Number</TableHead>
-                      <TableHead>NGO</TableHead>
                       <TableHead>Package</TableHead>
+                      <TableHead>NGO</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Delivery Date</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Expected Delivery</TableHead>
+                      <TableHead>Payment</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {purchaseOrders.map((po) => (
-                      <TableRow key={po.id}>
-                        <TableCell className="font-medium">{po.po_number}</TableCell>
-                        <TableCell>{po.ngo_name}</TableCell>
-                        <TableCell>{po.package_title}</TableCell>
-                        <TableCell>₹{po.total_amount.toLocaleString()}</TableCell>
+                    {assignments.map((assignment) => (
+                      <TableRow key={assignment.id}>
                         <TableCell>
-                          <Badge variant={
-                            po.status === 'pending' ? 'secondary' :
-                            po.status === 'delivered' ? 'default' : 'destructive'
-                          }>
-                            {po.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {po.expected_delivery_date ? 
-                            format(new Date(po.expected_delivery_date), 'MMM dd, yyyy') : 
-                            'Not set'
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openCreateInvoiceDialog(po)}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                          <div>
+                            <div className="font-medium">{assignment.package_title}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Assigned: {format(new Date(assignment.assigned_at), 'MMM dd, yyyy')}
+                            </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{assignment.ngo_name}</div>
+                            {assignment.ngo_contact && (
+                              <div className="text-sm text-muted-foreground">{assignment.ngo_contact}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>₹{assignment.package_amount.toLocaleString()}</TableCell>
+                        <TableCell>
+                          {assignment.delivery_date ? (
+                            format(new Date(assignment.delivery_date), 'MMM dd, yyyy')
+                          ) : (
+                            <span className="text-muted-foreground">Not set</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{getStatusBadge(assignment.status)}</TableCell>
+                        <TableCell>{getPaymentStatusBadge(assignment.payment_status)}</TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openUpdateDialog(assignment)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Update
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -278,49 +339,83 @@ const VendorDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="invoices" className="space-y-4">
+          <TabsContent value="packages" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Submitted Invoices</CardTitle>
-                <CardDescription>Your GST invoices and delivery notes</CardDescription>
+                <CardTitle>My Packages</CardTitle>
+                <CardDescription>
+                  Packages assigned to your vendor account
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Invoice Number</TableHead>
-                      <TableHead>PO Number</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead>Package</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Invoice Date</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead>Created</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {invoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                        <TableCell>{invoice.po_number}</TableCell>
+                    {packages.map((pkg) => (
+                      <TableRow key={pkg.id}>
                         <TableCell>
-                          <Badge variant="outline">
-                            {invoice.invoice_type === 'gst_invoice' ? 'GST Invoice' : 'Delivery Note'}
-                          </Badge>
+                          <div>
+                            <div className="font-medium">{pkg.title}</div>
+                            {pkg.description && (
+                              <div className="text-sm text-muted-foreground">{pkg.description}</div>
+                            )}
+                          </div>
                         </TableCell>
-                        <TableCell>₹{invoice.total_amount.toLocaleString()}</TableCell>
+                        <TableCell>{pkg.category}</TableCell>
+                        <TableCell>₹{pkg.amount.toLocaleString()}</TableCell>
+                        <TableCell>{getStatusBadge(pkg.status)}</TableCell>
+                        <TableCell>{format(new Date(pkg.created_at), 'MMM dd, yyyy')}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ngos" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Partner NGOs</CardTitle>
+                <CardDescription>
+                  NGOs you're delivering packages to
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>NGO Name</TableHead>
+                      <TableHead>Contact</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Active Assignments</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ngos.map((ngo) => (
+                      <TableRow key={ngo.id}>
                         <TableCell>
-                          <Badge variant={
-                            invoice.status === 'submitted' ? 'secondary' :
-                            invoice.status === 'approved' ? 'default' : 'destructive'
-                          }>
-                            {invoice.status}
-                          </Badge>
+                          <div className="font-medium">{ngo.name}</div>
                         </TableCell>
-                        <TableCell>{format(new Date(invoice.invoice_date), 'MMM dd, yyyy')}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div>
+                            <div>{ngo.email}</div>
+                            {ngo.phone && <div className="text-sm text-muted-foreground">{ngo.phone}</div>}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {ngo.city && ngo.state ? `${ngo.city}, ${ngo.state}` : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                          {assignments.filter(a => a.ngo_id === ngo.id && (a.status === 'pending' || a.status === 'in_progress')).length}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -331,190 +426,62 @@ const VendorDashboard = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Create Invoice Dialog */}
-        <Dialog open={isCreateInvoiceOpen} onOpenChange={setIsCreateInvoiceOpen}>
-          <DialogContent className="max-w-2xl">
+        {/* Update Assignment Dialog */}
+        <Dialog open={isUpdateDialogOpen} onOpenChange={setIsUpdateDialogOpen}>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Create Invoice</DialogTitle>
+              <DialogTitle>Update Assignment</DialogTitle>
               <DialogDescription>
-                Submit GST Invoice or Delivery Note for PO: {selectedPO?.po_number}
+                Update the delivery status and information for this package assignment.
               </DialogDescription>
             </DialogHeader>
-            {selectedPO && (
-              <CreateInvoiceForm 
-                purchaseOrder={selectedPO}
-                onSuccess={() => {
-                  setIsCreateInvoiceOpen(false);
-                  setSelectedPO(null);
-                  fetchInvoices();
-                }}
-                onCancel={() => {
-                  setIsCreateInvoiceOpen(false);
-                  setSelectedPO(null);
-                }}
-              />
-            )}
+            <form onSubmit={handleUpdateAssignment} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="status">Delivery Status</Label>
+                <Select
+                  value={updateForm.status}
+                  onValueChange={(value) => setUpdateForm({ ...updateForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delivery_date">Delivery Date</Label>
+                <Input
+                  id="delivery_date"
+                  type="date"
+                  value={updateForm.delivery_date}
+                  onChange={(e) => setUpdateForm({ ...updateForm, delivery_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea
+                  id="notes"
+                  value={updateForm.notes}
+                  onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value })}
+                  placeholder="Add any delivery notes..."
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsUpdateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">Update Assignment</Button>
+              </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
     </div>
-  );
-};
-
-// Create Invoice Form Component
-const CreateInvoiceForm = ({ 
-  purchaseOrder, 
-  onSuccess, 
-  onCancel 
-}: { 
-  purchaseOrder: PurchaseOrder;
-  onSuccess: () => void;
-  onCancel: () => void;
-}) => {
-  const [formData, setFormData] = useState({
-    invoice_number: '',
-    gst_number: '',
-    invoice_type: 'gst_invoice',
-    invoice_amount: purchaseOrder.total_amount.toString(),
-    tax_amount: '0',
-    total_amount: purchaseOrder.total_amount.toString(),
-    invoice_date: new Date().toISOString().split('T')[0],
-    delivery_date: '',
-    notes: ''
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { error } = await supabase
-        .from("vendor_invoices")
-        .insert([{
-          purchase_order_id: purchaseOrder.id,
-          vendor_id: purchaseOrder.vendor_id,
-          ...formData,
-          invoice_amount: parseFloat(formData.invoice_amount),
-          tax_amount: parseFloat(formData.tax_amount),
-          total_amount: parseFloat(formData.total_amount)
-        }]);
-
-      if (error) throw error;
-
-      toast.success("Invoice submitted successfully");
-      onSuccess();
-    } catch (error) {
-      console.error("Error creating invoice:", error);
-      toast.error("Failed to submit invoice");
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="invoice_number">Invoice Number *</Label>
-          <Input
-            id="invoice_number"
-            value={formData.invoice_number}
-            onChange={(e) => setFormData({...formData, invoice_number: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="invoice_type">Invoice Type *</Label>
-          <select
-            id="invoice_type"
-            value={formData.invoice_type}
-            onChange={(e) => setFormData({...formData, invoice_type: e.target.value})}
-            className="w-full p-2 border rounded-md"
-            required
-          >
-            <option value="gst_invoice">GST Invoice</option>
-            <option value="delivery_note">Delivery Note</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="gst_number">GST Number</Label>
-          <Input
-            id="gst_number"
-            value={formData.gst_number}
-            onChange={(e) => setFormData({...formData, gst_number: e.target.value})}
-          />
-        </div>
-        <div>
-          <Label htmlFor="invoice_date">Invoice Date *</Label>
-          <Input
-            id="invoice_date"
-            type="date"
-            value={formData.invoice_date}
-            onChange={(e) => setFormData({...formData, invoice_date: e.target.value})}
-            required
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <Label htmlFor="invoice_amount">Invoice Amount *</Label>
-          <Input
-            id="invoice_amount"
-            type="number"
-            step="0.01"
-            value={formData.invoice_amount}
-            onChange={(e) => setFormData({...formData, invoice_amount: e.target.value})}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="tax_amount">Tax Amount</Label>
-          <Input
-            id="tax_amount"
-            type="number"
-            step="0.01"
-            value={formData.tax_amount}
-            onChange={(e) => setFormData({...formData, tax_amount: e.target.value})}
-          />
-        </div>
-        <div>
-          <Label htmlFor="total_amount">Total Amount *</Label>
-          <Input
-            id="total_amount"
-            type="number"
-            step="0.01"
-            value={formData.total_amount}
-            onChange={(e) => setFormData({...formData, total_amount: e.target.value})}
-            required
-          />
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="delivery_date">Delivery Date</Label>
-        <Input
-          id="delivery_date"
-          type="date"
-          value={formData.delivery_date}
-          onChange={(e) => setFormData({...formData, delivery_date: e.target.value})}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea
-          id="notes"
-          value={formData.notes}
-          onChange={(e) => setFormData({...formData, notes: e.target.value})}
-          placeholder="Additional notes about the delivery or invoice"
-        />
-      </div>
-
-      <div className="flex space-x-2">
-        <Button type="submit" className="flex-1">Submit Invoice</Button>
-        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-      </div>
-    </form>
   );
 };
 

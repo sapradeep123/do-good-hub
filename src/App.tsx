@@ -11,7 +11,9 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NGODashboard from "./pages/NGODashboard";
 import VendorDashboard from "./pages/VendorDashboard";
+import UserDashboard from "./pages/UserDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminTransactionManagement from "./pages/AdminTransactionManagement";
 import PasswordReset from "./pages/PasswordReset";
 import HowItWorks from "./pages/HowItWorks";
 import About from "./pages/About";
@@ -32,9 +34,11 @@ const App = () => (
             <Route path="/ngo/:id" element={<NGODetail />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/user-dashboard" element={<UserDashboard />} />
             <Route path="/ngo-dashboard" element={<NGODashboard />} />
             <Route path="/vendor-dashboard" element={<VendorDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/transactions" element={<AdminTransactionManagement />} />
             <Route path="/password-reset" element={<PasswordReset />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/about" element={<About />} />

@@ -49,17 +49,29 @@ class ApiClient {
     }
 
     try {
+      console.log('Making API request to:', url);
       const response = await fetch(url, {
         ...options,
         headers,
       });
 
-      const data = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
 
       if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+        const errorText = await response.text();
+        console.error('Response error text:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
+      const responseText = await response.text();
+      console.log('Response text:', responseText);
+
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+
+      const data = JSON.parse(responseText);
       return data;
     } catch (error) {
       console.error('API request failed:', error);
@@ -74,6 +86,7 @@ class ApiClient {
     firstName: string;
     lastName: string;
     phone?: string;
+    role?: string;
   }): Promise<AuthResponse> {
     const response = await this.request<AuthResponse>('/api/auth/register', {
       method: 'POST',
@@ -134,8 +147,8 @@ class ApiClient {
   async get<T>(endpoint: string): Promise<T> {
     const response = await this.request<T>(endpoint);
     
-    if (response.success && response.data) {
-      return response.data;
+    if (response.success) {
+      return response.data || response;
     }
 
     throw new Error(response.error || 'GET request failed');
@@ -147,8 +160,8 @@ class ApiClient {
       body: JSON.stringify(data),
     });
 
-    if (response.success && response.data) {
-      return response.data;
+    if (response.success) {
+      return response.data || response;
     }
 
     throw new Error(response.error || 'POST request failed');
@@ -160,8 +173,8 @@ class ApiClient {
       body: JSON.stringify(data),
     });
 
-    if (response.success && response.data) {
-      return response.data;
+    if (response.success) {
+      return response.data || response;
     }
 
     throw new Error(response.error || 'PUT request failed');
