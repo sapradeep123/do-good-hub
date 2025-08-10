@@ -68,6 +68,13 @@ async function ensurePackageAssignmentsTable() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_vendor ON public.package_assignments(vendor_id);`);
 }
 
+async function ensureProfileResetColumns() {
+  // Make sure password reset columns exist on profiles
+  await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_token text;`);
+  await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz;`);
+  await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_hash text;`);
+}
+
 // Debug endpoint to list package_assignments constraints (admin/dev only; no auth for local debug)
 // Note: must be declared after app is initialized; this block is moved below app initialization
 
@@ -173,7 +180,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Ensure database tables exist before starting server
-ensurePackageAssignmentsTable().then(() => {
+Promise.all([ensurePackageAssignmentsTable(), ensureProfileResetColumns()]).then(() => {
   console.log('✅ package_assignments ready');
   
   // Start server only after database setup is complete

@@ -104,6 +104,7 @@ const AdminDashboard = () => {
   const [isEditVendorDialogOpen, setIsEditVendorDialogOpen] = useState(false);
   const [isViewVendorDialogOpen, setIsViewVendorDialogOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+  const [vendorAssignments, setVendorAssignments] = useState<any[]>([]);
   const [vendorForm, setVendorForm] = useState({
     company_name: '',
     email: '',
@@ -329,7 +330,17 @@ const AdminDashboard = () => {
     setVendorForm({ company_name: '', email: '', phone: '', address: '', description: '', business_type: '' });
     setIsCreateVendorDialogOpen(true);
   };
-  const openViewVendor = (vendor: Vendor) => { setSelectedVendor(vendor); setIsViewVendorDialogOpen(true); };
+  const openViewVendor = async (vendor: Vendor) => {
+    setSelectedVendor(vendor);
+    try {
+      const resp = await apiClient.get(`/api/vendors/${vendor.id}`) as any;
+      const data = resp.data || resp || {};
+      setVendorAssignments(Array.isArray(data.assignments) ? data.assignments : []);
+    } catch (e) {
+      setVendorAssignments([]);
+    }
+    setIsViewVendorDialogOpen(true);
+  };
   const openEditVendor = (vendor: Vendor) => { setSelectedVendor(vendor); setVendorForm({
     company_name: vendor.company_name || '',
     email: vendor.email || '',
@@ -1034,8 +1045,13 @@ const AdminDashboard = () => {
                               <div>
                   <strong>Assigned Packages:</strong>
                   <ul style={{ marginTop: 6 }}>
-                    {ngoPackages.map((p) => (
-                      <li key={p.id}>- {p.title} (₹{p.amount})</li>
+                    {ngoPackages.map((p: any) => (
+                      <li key={p.id}>
+                        - {p.title} (₹{p.amount})
+                        {p.vendor_name && (
+                          <span style={{ color: '#6b7280' }}> — Vendor: {p.vendor_name}</span>
+                        )}
+                      </li>
                     ))}
                     {ngoPackages.length === 0 && <div style={{ color: '#6b7280' }}>No packages assigned</div>}
                   </ul>
@@ -1154,6 +1170,17 @@ const AdminDashboard = () => {
                 <div><strong>Address:</strong> {selectedVendor.address || '-'}</div>
                 <div><strong>Type:</strong> {selectedVendor.business_type || '-'}</div>
                 <div><strong>Verified:</strong> {selectedVendor.verified ? 'Yes' : 'No'}</div>
+                <div>
+                  <strong>Assignments:</strong>
+                  <ul style={{ marginTop: 6 }}>
+                    {vendorAssignments.map((a: any) => (
+                      <li key={a.assignment_id}>
+                        - NGO: {a.ngo_name || a.ngo_id} — Package: {a.package_title} (₹{a.package_amount})
+                      </li>
+                    ))}
+                    {vendorAssignments.length === 0 && <div style={{ color: '#6b7280' }}>No assignments</div>}
+                  </ul>
+                </div>
                 </div>
             )}
           </DialogContent>

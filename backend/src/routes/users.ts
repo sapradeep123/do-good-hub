@@ -8,7 +8,10 @@ const router = express.Router();
 router.get('/', requireRole(['admin']), async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, user_id, email, first_name, last_name, phone, role, created_at FROM profiles ORDER BY created_at DESC'
+      `SELECT DISTINCT ON (LOWER(email))
+         id, user_id, email, first_name, last_name, phone, role, created_at
+       FROM profiles
+       ORDER BY LOWER(email), created_at DESC`
     );
 
     return res.json({
@@ -114,7 +117,9 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
     // Verify the reset token and check if it's still valid
     const result = await pool.query(
       `SELECT id, email FROM profiles 
-       WHERE id = $1 AND password_reset_token = $2 AND password_reset_expires > NOW()`,
+       WHERE id = $1 
+         AND password_reset_token = $2 
+         AND (password_reset_expires IS NULL OR (password_reset_expires::timestamptz) > NOW())`,
       [id, token]
     );
 
@@ -130,12 +135,15 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     // Update the password and clear the reset token
-    await pool.query(
+    const update = await pool.query(
       `UPDATE profiles 
        SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL
-       WHERE id = $2`,
+       WHERE id = $2 RETURNING id`,
       [hashedPassword, id]
     );
+    if (update.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
 
     return res.json({
       success: true,
