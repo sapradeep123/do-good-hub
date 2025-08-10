@@ -1,33 +1,29 @@
 @echo off
-echo Starting backend...
-start "backend" cmd /k "cd backend & npm run dev"
+setlocal
+pushd "%~dp0"
+
+echo ========================================
+echo    Do Good Hub - Start/Restart Script
+echo ========================================
+echo.
+
+echo Starting Backend Server (http://localhost:3001)...
+start "Do Good Hub - Backend" cmd /k "cd backend && npm run dev"
+
+REM small delay so backend starts before frontend
 timeout /t 2 >nul
-echo Starting frontend...
-start "frontend" cmd /k "npm run dev"
-echo Both servers started. You can close this window.
-pause
 
-@echo off
-echo ========================================
-echo    Do Good Hub Project Restart Script
-echo ========================================
-echo.
-
-echo Starting Backend Server...
-cd backend
-start "Backend Server" cmd /k "npm run dev"
+echo Starting Frontend (http://localhost:5173)...
+start "Do Good Hub - Frontend" cmd /k "npm run dev"
 
 echo.
-echo Starting Frontend Server...
-cd ..
-start "Frontend Server" cmd /k "npm run dev"
-
-echo.
-echo ========================================
-echo    Servers are starting...
-echo    Backend: http://localhost:3002
-echo    Frontend: Check terminal for port
-echo    Admin: http://localhost:8084/admin
-echo ========================================
+echo ----------------------------------------
+echo URLs
+echo   Backend API : http://localhost:3001
+echo   App         : http://localhost:5173
+echo   Admin       : http://localhost:5173/admin
+echo ----------------------------------------
 echo.
 pause
+popd
+endlocal
