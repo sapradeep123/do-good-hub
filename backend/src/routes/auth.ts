@@ -215,3 +215,76 @@ router.get('/me', async (req: Request, res: Response) => {
 });
 
 export default router; 
+
+// Password reset by email (non-admin): request token
+router.post('/request-password-reset', [
+  body('email').isEmail().normalizeEmail(),
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { email } = req.body;
+    const profile = await pool.query('SELECT id FROM public.profiles WHERE email = $1', [email]);
+    if (profile.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Ensure columns exist
+    await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_token text;`);
+    await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz;`);
+
+    const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    await pool.query(
+      `UPDATE public.profiles SET password_reset_token = $1, password_reset_expires = NOW() + INTERVAL '1 hour' WHERE email = $2`,
+      [resetToken, email]
+    );
+
+    // In development, return the token directly
+    return res.json({ success: true, message: 'Reset token generated', data: { token: resetToken } });
+  } catch (error: any) {
+    console.error('Request password reset error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to generate reset token' });
+  }
+});
+
+// Password reset by email (non-admin): confirm reset
+router.post('/confirm-password-reset', [
+  body('email').isEmail().normalizeEmail(),
+  body('token').isString().isLength({ min: 20 }),
+  body('newPassword').isString().isLength({ min: 8 }),
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { email, token, newPassword } = req.body;
+
+    // Verify token
+    const result = await pool.query(
+      `SELECT id FROM public.profiles WHERE email = $1 AND password_reset_token = $2 AND (password_reset_expires IS NULL OR password_reset_expires > NOW())`,
+      [email, token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await pool.query(
+      `UPDATE public.profiles SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE email = $2`,
+      [hashedPassword, email]
+    );
+
+    return res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error: any) {
+    console.error('Confirm password reset error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to reset password' });
+  }
+});

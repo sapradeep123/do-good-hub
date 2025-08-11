@@ -227,6 +227,40 @@ function getConnection() {
           return { rows: [] };
         }
         
+        // Handle new auth request-password-reset
+        if (text.includes('UPDATE public.profiles SET password_reset_token') && text.includes('WHERE email = $2')) {
+          const token = params?.[0];
+          const email = params?.[1];
+          const user = mockUsers.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+          if (user) {
+            (user as any).password_reset_token = token;
+            (user as any).password_reset_expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            return { rowCount: 1, rows: [] } as any;
+          }
+          return { rowCount: 0, rows: [] } as any;
+        }
+
+        if (text.includes('SELECT id FROM public.profiles WHERE email = $1 AND password_reset_token = $2')) {
+          const email = params?.[0];
+          const token = params?.[1];
+          const user = mockUsers.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+          const valid = user && (user as any).password_reset_token === token && (!(user as any).password_reset_expires || new Date((user as any).password_reset_expires) > new Date());
+          return { rows: valid ? [{ id: (user as any).id }] : [] };
+        }
+
+        if (text.includes('UPDATE public.profiles SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE email = $2')) {
+          const hash = params?.[0];
+          const email = params?.[1];
+          const user = mockUsers.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+          if (user) {
+            (user as any).password_hash = hash;
+            delete (user as any).password_reset_token;
+            delete (user as any).password_reset_expires;
+            return { rowCount: 1, rows: [] } as any;
+          }
+          return { rowCount: 0, rows: [] } as any;
+        }
+
         // Default response
         return { rows: [] };
       },

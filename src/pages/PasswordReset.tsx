@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { ArrowLeft, Copy, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -49,41 +49,15 @@ const PasswordReset = () => {
         return;
       }
 
-      // Check if user exists (sanitized query)
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id")
-        .eq("email", email.trim().toLowerCase())
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        toast.error("User with this email not found");
+      // Ask backend to generate token (returns token in dev)
+      const resp = await apiClient.post('/api/auth/request-password-reset', { email: email.trim().toLowerCase() }) as any;
+      const token = resp?.data?.token || resp?.token;
+      if (!token) {
+        toast.error('Failed to generate reset token');
         setIsLoading(false);
         return;
       }
-
-      // Security: Generate cryptographically secure token
-      const tokenArray = new Uint8Array(32);
-      crypto.getRandomValues(tokenArray);
-      const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
-      
-      // Store the reset request with shorter expiry for security
-      const { error } = await supabase
-        .from("password_reset_requests")
-        .insert({
-          email: email.trim().toLowerCase(),
-          token,
-          expires_at: new Date(Date.now() + 900000).toISOString(), // 15 minutes for security
-          used: false
-        });
-
-      if (error) {
-        toast.error("Failed to generate reset token");
-        setIsLoading(false);
-        return;
-      }
-
-      setGeneratedToken(token);
+      setGeneratedToken(String(token));
       setStep("reset");
       toast.success("Reset token generated! Valid for 15 minutes (Development mode)");
     } catch (error) {
@@ -122,26 +96,11 @@ const PasswordReset = () => {
         return;
       }
 
-      // Security: Use supabase client instead of hardcoded token
-      const { data, error } = await supabase.functions.invoke('reset-password', {
-        body: {
-          email: email.trim().toLowerCase(),
-          token: resetToken.trim(),
-          newPassword
-        }
+      await apiClient.post('/api/auth/confirm-password-reset', {
+        email: email.trim().toLowerCase(),
+        token: resetToken.trim(),
+        newPassword
       });
-
-      if (error) {
-        toast.error(error.message || 'Failed to reset password');
-        setIsLoading(false);
-        return;
-      }
-
-      if (data?.error) {
-        toast.error(data.error);
-        setIsLoading(false);
-        return;
-      }
 
       toast.success("Password reset successful! You can now sign in with your new password.");
       navigate("/auth");
