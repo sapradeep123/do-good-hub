@@ -103,7 +103,7 @@ function getConnection() {
         console.log('🔧 Mock database query:', text.substring(0, 50) + '...');
         
         // Handle different query types
-        if (text.includes('SELECT * FROM profiles WHERE email')) {
+        if (text.includes('SELECT * FROM profiles WHERE email') || text.includes('SELECT * FROM public.profiles WHERE email')) {
           const email = params?.[0];
           const user = mockUsers.find(u => u.email === email);
           return { rows: user ? [user] : [] };
@@ -140,7 +140,7 @@ function getConnection() {
           return { rows: mockPackages };
         }
         
-        if (text.includes('INSERT INTO profiles')) {
+        if (text.includes('INSERT INTO profiles') || text.includes('INSERT INTO public.profiles')) {
           // Simulate insert and return new row with generated user_id
           const name = params?.[0];
           const email = params?.[1];
@@ -151,7 +151,7 @@ function getConnection() {
             email,
             first_name: name,
             last_name: '',
-            password_hash: '',
+            password_hash: '$2a$10$C3Gi.3J.LslKr0BcfO1oJuvHtTPnDV6dXH52x2Rrl/PGl/dVnu.S2',
             role,
             created_at: new Date().toISOString()
           };

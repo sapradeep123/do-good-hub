@@ -118,11 +118,12 @@ router.post('/login', [
     const user = result.rows[0] as any; // Type assertion for mock data
     
     // Ensure we have a valid user object with required properties
-    if (!user || !user.user_id || !user.email || !user.role || !user.password_hash) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid user data'
-      });
+    if (!user || !user.user_id || !user.email || !user.role) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    if (!user.password_hash) {
+      return res.status(401).json({ success: false, message: 'Password not set. Please ask admin to set/reset password.' });
     }
 
     // Check password
