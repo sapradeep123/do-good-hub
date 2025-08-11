@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
@@ -6,7 +6,7 @@ import { NGOCard } from "@/components/NGOCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { mockNGOs } from "@/data/ngos";
+import { apiClient } from "@/lib/api";
 import { Search, Filter } from "lucide-react";
 
 const Index = () => {
@@ -16,7 +16,39 @@ const Index = () => {
 
   const categories = ["All", "Education", "Healthcare", "Environment", "Nutrition", "Women Empowerment"];
 
-  const filteredNGOs = mockNGOs.filter(ngo => {
+  const [ngos, setNgos] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const data = await apiClient.get<any[]>("/api/ngos/public");
+        if (!isMounted) return;
+        // Map backend fields to UI model
+        const mapped = (Array.isArray(data) ? data : data?.data || []).map((n: any) => ({
+          id: n.id,
+          name: n.name,
+          description: n.description || n.mission || "",
+          location: [n.city, n.state].filter(Boolean).join(", "),
+          category: n.category || "General",
+          imageUrl: n.image_url || n.logo_url || "/placeholder.svg",
+          donorsCount: n.donors_count || 0,
+          isVerified: Boolean(n.verified || n.is_verified),
+        }));
+        setNgos(mapped);
+      } catch (e: any) {
+        console.error(e);
+        setError("Failed to load NGOs");
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
+
+  const filteredNGOs = ngos.filter(ngo => {
     const matchesSearch = ngo.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          ngo.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "All" || ngo.category === selectedCategory;
@@ -69,7 +101,13 @@ const Index = () => {
 
           {/* NGO Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredNGOs.map(ngo => (
+            {loading && (
+              <div className="col-span-full text-center text-muted-foreground">Loading NGOs...</div>
+            )}
+            {!loading && error && (
+              <div className="col-span-full text-center text-destructive">{error}</div>
+            )}
+            {!loading && !error && filteredNGOs.map(ngo => (
               <NGOCard
                 key={ngo.id}
                 id={ngo.id}
@@ -84,7 +122,7 @@ const Index = () => {
             ))}
           </div>
 
-          {filteredNGOs.length === 0 && (
+          {!loading && !error && filteredNGOs.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No NGOs found matching your criteria.</p>
             </div>

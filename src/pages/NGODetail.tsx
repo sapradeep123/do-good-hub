@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DonationModal } from "@/components/DonationModal";
 import { InvoiceModal } from "@/components/InvoiceModal";
-import { mockNGOs, DonationPackage } from "@/data/ngos";
+import { DonationPackage } from "@/data/ngos";
+import { apiClient } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, MapPin, Phone, Mail, Globe, Users, CheckCircle, Heart, Info, Contact } from "lucide-react";
@@ -23,7 +24,45 @@ const NGODetail = () => {
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [donationId, setDonationId] = useState<string | null>(null);
   
-  const ngo = mockNGOs.find(n => n.id === id);
+  const [ngo, setNgo] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!id) return;
+      try {
+        const data = await apiClient.get<any>(`/api/ngos/public/${id}`);
+        if (!mounted) return;
+        const mapped = data?.data || data;
+        setNgo({
+          id: mapped.id,
+          name: mapped.name,
+          description: mapped.description || mapped.mission || '',
+          location: [mapped.city, mapped.state].filter(Boolean).join(', '),
+          category: mapped.category || 'General',
+          imageUrl: mapped.image_url || mapped.logo_url || '/placeholder.svg',
+          donorsCount: mapped.donors_count || 0,
+          isVerified: Boolean(mapped.verified || mapped.is_verified),
+          story: mapped.mission || '',
+          aboutUs: mapped.description || '',
+          contact: {
+            email: mapped.email || '',
+            phone: mapped.phone || '',
+            website: mapped.website || mapped.website_url || ''
+          },
+          packages: [] as DonationPackage[]
+        });
+      } catch (e: any) {
+        console.error(e);
+        setError('NGO Not Found');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [id]);
 
   const handlePackageClick = (pkg: DonationPackage) => {
     if (!user) {
@@ -61,7 +100,18 @@ const NGODetail = () => {
     setInvoiceModalOpen(true);
   };
   
-  if (!ngo) {
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="container mx-auto px-4 py-16 text-center">
+          <h1 className="text-xl text-muted-foreground">Loading NGO...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !ngo) {
     return (
       <div className="min-h-screen bg-background">
         <Header />

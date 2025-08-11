@@ -5,6 +5,57 @@ import { requireRole, attachUser } from '../middleware/auth';
 
 const router = express.Router();
 
+// Public: list verified NGOs (no auth required)
+router.get('/public', async (_req: Request, res: Response) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, description, mission, website, city, state, phone, email, registration_number, verified, created_at
+       FROM ngos
+       WHERE verified = true
+       ORDER BY LOWER(name) ASC, created_at DESC`
+    );
+
+    return res.json({
+      success: true,
+      data: result.rows,
+      count: result.rows.length
+    });
+  } catch (error: any) {
+    console.error('Error fetching public NGOs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch NGOs',
+      error: error.message
+    });
+  }
+});
+
+// Public: get single NGO by id (no auth required)
+router.get('/public/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `SELECT id, name, description, mission, website, city, state, phone, email, registration_number, verified, created_at
+       FROM ngos
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'NGO not found' });
+    }
+
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error fetching public NGO:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch NGO',
+      error: error.message
+    });
+  }
+});
+
 // Get NGO Dashboard data (NGO only)
 router.get('/dashboard', attachUser, requireRole(['ngo']), async (req: Request, res: Response) => {
   try {

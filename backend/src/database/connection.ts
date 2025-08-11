@@ -11,7 +11,7 @@ function getConnection() {
     console.log('🔧 Using mock database connection for demonstration');
     
     // Mock data with correct password hashes
-    const mockUsers = [
+    let mockUsers = [
       {
         id: '1',
         user_id: 'admin-user-id',
@@ -34,7 +34,7 @@ function getConnection() {
       }
     ];
 
-    const mockNGOs = [
+    let mockNGOs = [
       {
         id: 'ngo-1',
         user_id: 'test-user-id',
@@ -61,7 +61,7 @@ function getConnection() {
       }
     ];
 
-    const mockPackages = [
+    let mockPackages = [
       {
         id: 'pkg-1',
         ngo_id: 'ngo-1',
@@ -113,7 +113,8 @@ function getConnection() {
           return { rows: [{ count: mockUsers.length }] };
         }
         
-        if (text.includes('SELECT n.*, p.first_name, p.last_name, p.email as user_email FROM ngos n')) {
+        if (text.includes('SELECT DISTINCT ON (LOWER(n.name)) n.*, p.first_name, p.last_name, p.email as user_email') ||
+            text.includes('SELECT n.*, p.first_name, p.last_name, p.email as user_email FROM ngos n')) {
           const ngosWithUsers = mockNGOs.map(ngo => ({
             ...ngo,
             first_name: mockUsers.find(u => u.user_id === ngo.user_id)?.first_name || '',
@@ -121,6 +122,12 @@ function getConnection() {
             user_email: mockUsers.find(u => u.user_id === ngo.user_id)?.email || ''
           }));
           return { rows: ngosWithUsers };
+        }
+        
+        if (text.includes('SELECT id, name, description, mission, website, city, state, phone, email, registration_number, verified, created_at') &&
+            text.includes('FROM ngos')) {
+          const verified = mockNGOs.filter(n => n.verified === true);
+          return { rows: verified };
         }
         
         if (text.includes('SELECT * FROM packages WHERE ngo_id')) {
@@ -134,11 +141,50 @@ function getConnection() {
         }
         
         if (text.includes('INSERT INTO profiles')) {
-          return { rows: [mockUsers[0]] };
+          // Simulate insert and return new row with generated user_id
+          const name = params?.[0];
+          const email = params?.[1];
+          const role = 'ngo';
+          const newUser = {
+            id: (mockUsers.length + 1).toString(),
+            user_id: `mock-user-${mockUsers.length + 1}`,
+            email,
+            first_name: name,
+            last_name: '',
+            password_hash: '',
+            role,
+            created_at: new Date().toISOString()
+          };
+          mockUsers = [newUser, ...mockUsers];
+          return { rows: [{ user_id: newUser.user_id }] };
         }
         
         if (text.includes('INSERT INTO ngos')) {
-          return { rows: [mockNGOs[0]] };
+          // Create NGO tied to last inserted user (based on params)
+          const [name, email, description, mission, website, city, state, phone, registration_number, verified, user_id] = params || [];
+          const newNgo = {
+            id: `mock-ngo-${mockNGOs.length + 1}`,
+            user_id,
+            name,
+            description,
+            mission,
+            website,
+            address: '',
+            city,
+            state,
+            verified: Boolean(verified),
+            email,
+            phone,
+            registration_number,
+            created_at: new Date().toISOString()
+          } as any;
+          mockNGOs = [newNgo, ...mockNGOs];
+          return { rows: [newNgo] };
+        }
+
+        if (text.includes('SELECT DISTINCT ON (LOWER(email))') && text.includes('FROM profiles')) {
+          // Return users list
+          return { rows: mockUsers };
         }
         
         // Default response
