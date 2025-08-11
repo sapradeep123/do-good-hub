@@ -186,6 +186,46 @@ function getConnection() {
           // Return users list
           return { rows: mockUsers };
         }
+
+        // Handle admin reset-password: set token and expiry
+        if (text.includes('UPDATE public.profiles') && text.includes('SET password_reset_token') && text.includes('WHERE id =')) {
+          const token = params?.[0];
+          const id = params?.[1];
+          const user = mockUsers.find(u => u.id === id);
+          if (user) {
+            (user as any).password_reset_token = token;
+            // Store expiry 1 hour from now
+            (user as any).password_reset_expires = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+            return { rows: [{ id: user.id, email: user.email }] };
+          }
+          return { rows: [] };
+        }
+
+        // Handle confirm-reset token validation SELECT
+        if (text.includes('SELECT id, email FROM public.profiles') && text.includes('password_reset_token = $2')) {
+          const id = params?.[0];
+          const token = params?.[1];
+          const user = mockUsers.find(u => u.id === id);
+          const notExpired = user && (!(user as any).password_reset_expires || new Date((user as any).password_reset_expires) > new Date());
+          if (user && (user as any).password_reset_token === token && notExpired) {
+            return { rows: [{ id: user.id, email: user.email }] };
+          }
+          return { rows: [] };
+        }
+
+        // Handle setting the new password hash and clearing reset token
+        if (text.includes('UPDATE public.profiles') && text.includes('SET password_hash = $1') && text.includes('WHERE id = $2')) {
+          const newHash = params?.[0];
+          const id = params?.[1];
+          const user = mockUsers.find(u => u.id === id);
+          if (user) {
+            (user as any).password_hash = newHash;
+            delete (user as any).password_reset_token;
+            delete (user as any).password_reset_expires;
+            return { rows: [{ id: user.id }] };
+          }
+          return { rows: [] };
+        }
         
         // Default response
         return { rows: [] };
