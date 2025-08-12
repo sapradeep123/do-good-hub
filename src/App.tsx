@@ -15,6 +15,7 @@ import UserDashboard from "./pages/UserDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminTransactionManagement from "./pages/AdminTransactionManagement";
 import PasswordReset from "./pages/PasswordReset";
+import UserProfile from "./pages/UserProfile";
 import HowItWorks from "./pages/HowItWorks";
 import About from "./pages/About";
 import Contact from "./pages/Contact";
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/user-dashboard" element={<UserDashboard />} />
+            <Route path="/profile" element={<UserProfile />} />
             <Route path="/ngo-dashboard" element={<NGODashboard />} />
             <Route path="/vendor-dashboard" element={<VendorDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />

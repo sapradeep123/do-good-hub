@@ -136,12 +136,19 @@ const VendorDashboard = () => {
 
   const fetchNGOs = async () => {
     try {
-      const response = await apiClient.get('/api/vendors/ngos') as any;
-      const ngos = Array.isArray(response) ? response : (response.data || []);
-      setNGOs(ngos);
+      try {
+        const response = await apiClient.get('/api/vendors/ngos') as any;
+        const ngos = Array.isArray(response) ? response : (response.data || []);
+        setNGOs(ngos);
+      } catch (err) {
+        // Fallback: load general NGOs list so UI doesn't break if vendor-specific API is unavailable
+        const response = await apiClient.get('/api/ngos') as any;
+        const ngos = Array.isArray(response) ? response : (response.data || []);
+        setNGOs(ngos);
+      }
     } catch (error) {
       console.error("Error fetching NGOs:", error);
-      toast.error("Failed to fetch NGOs");
+      setNGOs([]);
     }
   };
 

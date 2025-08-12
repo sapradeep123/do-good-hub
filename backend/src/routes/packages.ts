@@ -6,7 +6,8 @@ import { requireRole, attachUser } from '../middleware/auth';
 const router = express.Router();
 
 // Get all packages
-router.get('/', requireRole(['admin', 'ngo', 'vendor']), async (req: Request, res: Response) => {
+// Allow 'user' to read packages so donors can browse available options
+router.get('/', requireRole(['admin', 'ngo', 'vendor', 'user']), async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
       'SELECT * FROM packages ORDER BY created_at DESC'
@@ -26,7 +27,7 @@ router.get('/', requireRole(['admin', 'ngo', 'vendor']), async (req: Request, re
 });
 
 // Get package by ID
-router.get('/:id', requireRole(['admin', 'ngo', 'vendor']), async (req: Request, res: Response) => {
+router.get('/:id', requireRole(['admin', 'ngo', 'vendor', 'user']), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     

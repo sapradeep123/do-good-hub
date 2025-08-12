@@ -40,6 +40,8 @@ async function ensurePackageAssignmentsTable() {
       status text DEFAULT 'pending',
       delivery_date date,
       notes text,
+      delivery_note_url text,
+      ngo_confirmed_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),
       updated_at timestamptz,
       UNIQUE (package_id, ngo_id, vendor_id)
@@ -62,17 +64,38 @@ async function ensurePackageAssignmentsTable() {
   await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS status text DEFAULT 'pending';`);
   await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS delivery_date date;`);
   await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS notes text;`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS delivery_note_url text;`);
+  await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS ngo_confirmed_at timestamptz;`);
   await pool.query(`ALTER TABLE public.package_assignments ADD COLUMN IF NOT EXISTS updated_at timestamptz;`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_pkg ON public.package_assignments(package_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_ngo ON public.package_assignments(ngo_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_pa_vendor ON public.package_assignments(vendor_id);`);
 }
 
+async function ensureVendorPackageAssignmentsTable() {
+  await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.vendor_package_assignments (
+      id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+      vendor_id uuid NOT NULL REFERENCES public.vendors(id) ON DELETE CASCADE,
+      package_assignment_id uuid NOT NULL REFERENCES public.package_assignments(id) ON DELETE CASCADE,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz
+    );
+  `);
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_vendor_package_assignment
+    ON public.vendor_package_assignments(vendor_id, package_assignment_id);
+  `);
+}
+
 async function ensureProfileResetColumns() {
-  // Make sure password reset columns exist on profiles
+  // Make sure password reset and profile columns exist on profiles
   await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_token text;`);
   await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz;`);
   await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_hash text;`);
+  await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS aadhar_number text;`);
+  await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS pan_number text;`);
 }
 
 // Debug endpoint to list package_assignments constraints (admin/dev only; no auth for local debug)
@@ -92,6 +115,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
 }));
 
 // Rate limiting
@@ -180,7 +204,11 @@ app.use(notFound);
 app.use(errorHandler);
 
 // Ensure database tables exist before starting server
-Promise.all([ensurePackageAssignmentsTable(), ensureProfileResetColumns()]).then(() => {
+Promise.all([
+  ensurePackageAssignmentsTable(),
+  ensureVendorPackageAssignmentsTable(),
+  ensureProfileResetColumns()
+]).then(() => {
   console.log('✅ package_assignments ready');
   
   // Start server only after database setup is complete

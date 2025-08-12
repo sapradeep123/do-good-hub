@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -21,24 +20,9 @@ export const Header = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      checkUserRole();
-    }
+    // Use role from our Auth context (Postgres-backed API), not Supabase
+    setUserRole(user?.role || null);
   }, [user]);
-
-  const checkUserRole = async () => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user?.id)
-        .maybeSingle();
-      
-      setUserRole(data?.role || null);
-    } catch (error) {
-      setUserRole(null);
-    }
-  };
 
   const handleSignOut = async () => {
     await signOut();

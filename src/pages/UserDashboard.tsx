@@ -32,7 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Package, Users, Building2, CreditCard, History, ShoppingCart, Eye, Heart, LogOut, Home } from 'lucide-react';
+import { Package, Users, Building2, CreditCard, History, ShoppingCart, Eye, Heart, LogOut, Home, User as UserIcon } from 'lucide-react';
 
 interface Package {
   id: string;
@@ -88,7 +88,7 @@ const UserDashboard = () => {
   };
 
   const handleHome = () => {
-    navigate('/dashboard');
+    navigate('/');
   };
 
   useEffect(() => {
@@ -112,7 +112,8 @@ const UserDashboard = () => {
     try {
       const [packagesResponse, ngosResponse, transactionsResponse] = await Promise.all([
         apiClient.get('/api/packages') as any,
-        apiClient.get('/api/ngos') as any,
+        // Use public NGOs endpoint to avoid role restrictions for regular users
+        apiClient.get('/api/ngos/public') as any,
         apiClient.get('/api/payments/history') as any
       ]);
       
@@ -235,6 +236,15 @@ const UserDashboard = () => {
           >
             <Home className="w-4 h-4" />
             Home
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/profile')}
+            className="flex items-center gap-2"
+          >
+            <UserIcon className="w-4 h-4" />
+            Profile
           </Button>
           <Button
             variant="outline"
@@ -466,10 +476,11 @@ const UserDashboard = () => {
               </div>
 
               <div className="p-3 bg-blue-50 rounded-md">
-                <div className="text-sm text-blue-800">
-                  <div>Total Amount: ₹{(selectedPackage.amount * quantity).toLocaleString()}</div>
-                  <div className="text-xs mt-1">This donation will be processed securely via Razorpay</div>
-                </div>
+          <div className="text-sm text-blue-800">
+            <div>Total Amount: ₹{(selectedPackage.amount * quantity).toLocaleString()}</div>
+            <div className="text-xs mt-1">This donation will be processed securely via Razorpay</div>
+            <div className="text-xs mt-1">Optional: Enter alternate PAN at checkout if donating on behalf of someone else.</div>
+          </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4 border-t">

@@ -1,9 +1,82 @@
 import express, { Request, Response } from 'express';
 import pool from '../database/connection';
-import { requireRole } from '../middleware/auth';
+import { requireRole, attachUser } from '../middleware/auth';
 
 const router = express.Router();
 
+// Get current user's profile
+router.get('/me', attachUser, requireRole(['user','admin','ngo','vendor']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    const result = await pool.query(
+      `SELECT id, user_id, email, first_name, last_name, phone, role, aadhar_number, pan_number, created_at
+       FROM public.profiles WHERE user_id = $1`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+    return res.json({ success: true, data: result.rows[0] });
+  } catch (error: any) {
+    console.error('Error getting current profile:', error);
+    return res.status(500).json({ success: false, message: 'Failed to get profile' });
+  }
+});
+
+// Update current user's profile (name/phone, aadhar, pan). Email is immutable.
+router.put('/me', attachUser, requireRole(['user','admin','ngo','vendor']), async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    const { first_name, last_name, phone, aadhar_number, pan_number } = req.body;
+    const result = await pool.query(
+      `UPDATE public.profiles
+       SET first_name = COALESCE($1, first_name),
+           last_name = COALESCE($2, last_name),
+           phone = COALESCE($3, phone),
+           aadhar_number = COALESCE($4, aadhar_number),
+           pan_number = COALESCE($5, pan_number)
+       WHERE user_id = $6
+       RETURNING id, user_id, email, first_name, last_name, phone, role, aadhar_number, pan_number, created_at`,
+      [first_name, last_name, phone, aadhar_number, pan_number, userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Profile not found' });
+    }
+    return res.json({ success: true, data: result.rows[0], message: 'Profile updated' });
+  } catch (error: any) {
+    console.error('Error updating profile:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update profile' });
+  }
+});
+
+// Change password for current user
+router.post('/me/change-password', attachUser, requireRole(['user','admin','ngo','vendor']), async (req: Request, res: Response) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const userId = req.user?.userId || req.user?.id;
+    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    const userRes = await pool.query('SELECT password_hash FROM public.profiles WHERE user_id = $1', [userId]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const ok = await bcrypt.compare(currentPassword, userRes.rows[0].password_hash || '');
+    if (!ok) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE public.profiles SET password_hash = $1 WHERE user_id = $2', [hashed, userId]);
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    console.error('Error changing password:', error);
+    return res.status(500).json({ success: false, message: 'Failed to change password' });
+  }
+});
 // Get all users (admin only)
 router.get('/', requireRole(['admin']), async (req: Request, res: Response) => {
   try {

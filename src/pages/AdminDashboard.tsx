@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient } from '../lib/api';
 import { toast } from 'sonner';
@@ -69,6 +70,7 @@ interface Package {
 
 const AdminDashboard = () => {
   const { user, signOut, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [ngos, setNGOs] = useState<NGO[]>([]);
@@ -669,14 +671,19 @@ const AdminDashboard = () => {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ textAlign: 'right' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Button variant="outline" onClick={() => navigate('/admin/transactions')}>
+                View Transactions
+              </Button>
+              <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.875rem', color: '#666' }}>Welcome,</div>
               <div style={{ fontWeight: '500' }}>{user.firstName} {user.lastName}</div>
-            </div>
-            <Button variant="outline" onClick={handleLogout}>
+              </div>
+              <Button variant="outline" onClick={handleLogout}>
               <LogOut style={{ height: '1rem', width: '1rem', marginRight: '0.5rem' }} />
               Logout
-            </Button>
+              </Button>
+            </div>
           </div>
         </div>
 

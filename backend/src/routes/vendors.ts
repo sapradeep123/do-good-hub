@@ -39,10 +39,8 @@ router.get('/assignments', attachUser, requireRole(['vendor']), async (req: Requ
     );
 
     if (vendorResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor profile not found'
-      });
+      // Gracefully handle missing vendor profile for a vendor user
+      return res.json({ success: true, data: [] });
     }
 
     const vendorId = vendorResult.rows[0].id;
@@ -50,12 +48,14 @@ router.get('/assignments', attachUser, requireRole(['vendor']), async (req: Requ
     // Get assignments for this vendor with package and NGO details
     const result = await pool.query(
       `SELECT 
-        pa.id as assignment_id,
+        pa.id as id,
         pa.package_id,
         pa.ngo_id,
         pa.status,
         pa.delivery_date,
         pa.notes,
+        pa.delivery_note_url,
+        pa.ngo_confirmed_at,
         pa.created_at,
         pa.updated_at,
         p.title as package_title,
@@ -99,17 +99,15 @@ router.put('/assignments/:id', attachUser, requireRole(['vendor']), async (req: 
     );
     
     if (vendorResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor profile not found'
-      });
+      return res.json({ success: true, data: [] });
     }
 
     const vendorId = vendorResult.rows[0].id;
 
+    // Update assignment on package_assignments
     const result = await pool.query(
-      `UPDATE vendor_assignments 
-       SET status = $1, delivery_date = $2, notes = $3, updated_at = NOW()
+      `UPDATE package_assignments 
+       SET status = COALESCE($1, status), delivery_date = $2, notes = $3, updated_at = NOW()
        WHERE id = $4 AND vendor_id = $5
        RETURNING *`,
       [status, delivery_date, notes, id, vendorId]
@@ -135,6 +133,34 @@ router.put('/assignments/:id', attachUser, requireRole(['vendor']), async (req: 
   }
 });
 
+// Upload or attach a delivery note URL (vendor only)
+router.put('/assignments/:id/delivery-note', attachUser, requireRole(['vendor']), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { delivery_note_url } = req.body as { delivery_note_url: string };
+    const userId = (req as any).user.userId;
+
+    const vendorResult = await pool.query('SELECT id FROM vendors WHERE user_id = $1', [userId]);
+    if (vendorResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Vendor profile not found' });
+    }
+    const vendorId = vendorResult.rows[0].id;
+
+    const result = await pool.query(
+      `UPDATE package_assignments SET delivery_note_url = $1, updated_at = NOW()
+       WHERE id = $2 AND vendor_id = $3 RETURNING id, delivery_note_url`,
+      [delivery_note_url, id, vendorId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Assignment not found or access denied' });
+    }
+    return res.json({ success: true, data: result.rows[0], message: 'Delivery note saved' });
+  } catch (error) {
+    console.error('Error saving delivery note:', error);
+    return res.status(500).json({ success: false, message: 'Failed to save delivery note' });
+  }
+});
+
 // Get vendor packages (vendor only)
 router.get('/packages', attachUser, requireRole(['vendor']), async (req: Request, res: Response) => {
   try {
@@ -147,10 +173,7 @@ router.get('/packages', attachUser, requireRole(['vendor']), async (req: Request
     );
 
     if (vendorResult.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Vendor profile not found'
-      });
+      return res.json({ success: true, data: [] });
     }
 
     const vendorId = vendorResult.rows[0].id;
@@ -370,13 +393,22 @@ router.delete('/:id', requireRole(['admin']), async (req: Request, res: Response
 // Assign vendor to (package, NGO) combination (Admin only)
 router.post('/assign-package', requireRole(['admin']), async (req: Request, res: Response) => {
   try {
-    const { packageId, vendorId, ngoId } = req.body;
+    let { packageId, vendorId, ngoId } = req.body as { packageId: string; vendorId: string; ngoId?: string };
 
-    if (!packageId || !vendorId || !ngoId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Package ID, NGO ID and Vendor ID are required'
-      });
+    if (!packageId || !vendorId) {
+      return res.status(400).json({ success: false, message: 'Package ID and Vendor ID are required' });
+    }
+
+    // If NGO ID not provided, infer from the most recent order for this package
+    if (!ngoId) {
+      const inferRes = await pool.query(
+        `SELECT ngo_id FROM orders WHERE package_id = $1 ORDER BY created_at DESC LIMIT 1`,
+        [packageId]
+      );
+      if (inferRes.rows.length === 0) {
+        return res.status(400).json({ success: false, message: 'NGO ID is required and could not be inferred' });
+      }
+      ngoId = inferRes.rows[0].ngo_id;
     }
 
     // Check entities
@@ -398,14 +430,29 @@ router.post('/assign-package', requireRole(['admin']), async (req: Request, res:
       packageAssignmentId = created.rows[0].id;
     }
 
-    // Create vendor-package assignment
+      // Create vendor-package assignment
     await pool.query(`
       INSERT INTO vendor_package_assignments (vendor_id, package_assignment_id, created_at)
       VALUES ($1, $2, NOW())
       ON CONFLICT (vendor_id, package_assignment_id) DO UPDATE SET updated_at = NOW()
     `, [vendorId, packageAssignmentId]);
 
-    return res.json({ success: true, message: 'Vendor assigned successfully' });
+      // Also update any open transactions for this (package, NGO) that are pending assignment
+      try {
+        await pool.query(
+          `UPDATE transactions
+           SET vendor_id = $1,
+               status = 'assigned_to_vendor',
+               assigned_at = NOW(),
+               updated_at = NOW()
+           WHERE package_id = $2 AND ngo_id = $3 AND status = 'pending_admin_assignment'`,
+          [vendorId, packageId, ngoId]
+        );
+      } catch (err) {
+        console.log('Skipping transaction vendor update:', (err as any)?.message);
+      }
+
+      return res.json({ success: true, message: 'Vendor assigned successfully' });
   } catch (error) {
     console.error('Error assigning vendor:', error);
     return res.status(500).json({

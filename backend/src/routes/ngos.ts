@@ -128,6 +128,53 @@ router.get('/dashboard', attachUser, requireRole(['ngo']), async (req: Request, 
   }
 });
 
+// NGO confirms delivery for a package assignment
+router.post('/assignments/:id/confirm-delivery', attachUser, requireRole(['ngo']), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params; // assignment id
+    const userId = (req as any).user.userId;
+
+    // Ensure this assignment belongs to the NGO of this user
+    const ngoRes = await pool.query('SELECT id FROM ngos WHERE user_id = $1', [userId]);
+    if (ngoRes.rows.length === 0) return res.status(404).json({ success: false, message: 'NGO profile not found' });
+    const ngoId = ngoRes.rows[0].id;
+
+    const result = await pool.query(
+      `UPDATE package_assignments
+       SET status = 'delivered', ngo_confirmed_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND ngo_id = $2
+       RETURNING id, status, ngo_confirmed_at`,
+      [id, ngoId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Assignment not found or access denied' });
+    }
+
+    // Also propagate to transactions table for transparency
+    try {
+      // Find package_id for this assignment
+      const assignRes = await pool.query('SELECT package_id FROM package_assignments WHERE id = $1', [id]);
+      const packageId = assignRes.rows[0]?.package_id;
+      if (packageId) {
+        await pool.query(
+          `UPDATE transactions
+           SET status = 'delivered', delivered_at = NOW(), updated_at = NOW()
+           WHERE package_id = $1 AND ngo_id = $2 AND status IN ('assigned_to_vendor','vendor_processing','shipped')`,
+          [packageId, ngoId]
+        );
+      }
+    } catch (err) {
+      console.log('Skipping transaction delivery propagation:', (err as any)?.message);
+    }
+
+    return res.json({ success: true, data: result.rows[0], message: 'Delivery confirmed' });
+  } catch (error) {
+    console.error('Error confirming delivery:', error);
+    return res.status(500).json({ success: false, message: 'Failed to confirm delivery' });
+  }
+});
+
 // Update NGO profile (NGO only)
 router.put('/:id/profile', attachUser, requireRole(['ngo']), async (req: Request, res: Response) => {
   try {

@@ -60,7 +60,9 @@ router.post('/create-order', attachUser, requireRole(['user']), async (req: Requ
         packageId: packageId,
         ngoId: ngoId,
         userId: userId,
-        quantity: quantity
+        quantity: quantity,
+        donor_pan_override: (req.body as any)?.donorPan || null,
+        donor_pan_name: (req.body as any)?.donorPanName || null
       }
     });
 
@@ -183,7 +185,7 @@ router.post('/verify-payment', attachUser, requireRole(['user']), async (req: Re
     // Create donation record
     const donationResult = await pool.query(`
       INSERT INTO donations (
-        user_id, ngo_id, package_id, package_title, package_amount, 
+        user_id, ngo_id, package_id, package_title, package_amount,
         total_amount, payment_status, transaction_id, created_at
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
       RETURNING *
@@ -197,6 +199,20 @@ router.post('/verify-payment', attachUser, requireRole(['user']), async (req: Re
       'completed',
       razorpay_payment_id
     ]);
+
+    // Create an initial transaction for tracking workflow if not exists
+    // Status starts as pending_admin_assignment; admin can assign a vendor later
+    try {
+      await pool.query(
+        `INSERT INTO transactions (
+          donation_id, package_id, ngo_id, donor_user_id, status, created_at
+        ) VALUES ($1, $2, $3, $4, 'pending_admin_assignment', NOW())
+        ON CONFLICT DO NOTHING`,
+        [donationResult.rows[0].id, order.package_id, order.ngo_id, userId]
+      );
+    } catch (txnErr) {
+      console.log('Transaction insert skipped/failed:', (txnErr as any)?.message);
+    }
 
     // Create package assignment for NGO (if table exists)
     try {
@@ -234,13 +250,30 @@ router.get('/history', attachUser, requireRole(['user']), async (req: Request, r
 
     const result = await pool.query(`
       SELECT 
-        o.*,
+        o.id as id,
+        o.order_id,
+        o.payment_id,
+        o.amount,
+        o.quantity,
+        o.status,
+        o.created_at,
         p.title as package_title,
         p.description as package_description,
-        n.name as ngo_name
+        n.name as ngo_name,
+        d.id as donation_id,
+        d.payment_status,
+        t.id as transaction_id,
+        t.status as transaction_status,
+        t.tracking_number,
+        t.assigned_at,
+        t.shipped_at,
+        t.delivered_at,
+        t.completed_at
       FROM orders o
       JOIN packages p ON o.package_id = p.id
       JOIN ngos n ON o.ngo_id = n.id
+      LEFT JOIN donations d ON d.transaction_id = o.payment_id
+      LEFT JOIN transactions t ON t.donation_id = d.id
       WHERE o.user_id = $1
       ORDER BY o.created_at DESC
     `, [userId]);
@@ -261,19 +294,46 @@ router.get('/history', attachUser, requireRole(['user']), async (req: Request, r
 // Get all transactions (Admin only)
 router.get('/transactions', requireRole(['admin']), async (req: Request, res: Response) => {
   try {
+    // Enrich admin view with donation and transaction tracking details
     const result = await pool.query(`
       SELECT 
-        o.*,
+        o.id as id,                                  -- preserve old key
+        o.order_id as order_id,                       -- preserve old field
+        o.order_id as razorpay_order_id,
+        o.payment_id as razorpay_payment_id,
+        o.user_id,
+        o.package_id,
+        o.ngo_id,
+        o.amount,
+        o.quantity,
+        o.status as status,                           -- preserve old 'status'
+        o.status as order_status,
+        o.created_at as created_at,                   -- preserve old field
+        o.created_at as order_created_at,
         p.title as package_title,
         p.description as package_description,
         n.name as ngo_name,
         u.first_name,
         u.last_name,
-        u.email as user_email
+        u.email as user_email,
+        d.id as donation_id,
+        d.payment_status as payment_status,           -- preserve old field name
+        d.payment_status as donation_payment_status,
+        t.id as transaction_id,
+        t.status as transaction_status,
+        t.tracking_number,
+        t.assigned_at,
+        t.shipped_at,
+        t.delivered_at,
+        t.completed_at,
+        v.company_name as vendor_name
       FROM orders o
       JOIN packages p ON o.package_id = p.id
       JOIN ngos n ON o.ngo_id = n.id
       JOIN profiles u ON o.user_id = u.user_id
+      LEFT JOIN donations d ON d.transaction_id = o.payment_id
+      LEFT JOIN transactions t ON t.donation_id = d.id
+      LEFT JOIN vendors v ON v.id = t.vendor_id
       ORDER BY o.created_at DESC
     `);
 
