@@ -644,6 +644,35 @@ const AdminDashboard = () => {
     window.location.href = '/login';
   };
 
+  const handleClearAllData = async () => {
+    if (!confirm('Are you sure you want to clear all sample data? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      console.log('🧹 Starting data cleanup...');
+      
+      const response = await apiClient.post('/api/cleanup/clear-all-data');
+      console.log('Cleanup response:', response);
+      
+      toast.success('All sample data cleared successfully!');
+      
+      // Refresh the dashboard data
+      fetchAllData();
+      
+    } catch (error) {
+      console.error('Failed to clear data:', error);
+      toast.error('Failed to clear data. Please try again or contact support.');
+      
+      // Log detailed error for debugging
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response
+      });
+    }
+  };
+
   if (authLoading || isLoading) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#f0f0f0', padding: '20px' }}>
@@ -672,8 +701,23 @@ const AdminDashboard = () => {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Button variant="outline" onClick={() => navigate('/admin/transactions')}>
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/admin/transactions')}
+              >
                 View Transactions
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleClearAllData}
+                style={{ 
+                  backgroundColor: '#dc2626', 
+                  color: 'white',
+                  border: '2px solid #dc2626'
+                }}
+                title="Clear all sample data and start fresh"
+              >
+                🗑️ Clear Sample Data
               </Button>
               <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.875rem', color: '#666' }}>Welcome,</div>

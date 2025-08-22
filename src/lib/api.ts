@@ -1,7 +1,7 @@
 // API Client for Do Good Hub Backend
 // Replaces Supabase client with custom API client
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface ApiResponse<T = any> {
   success: boolean;
@@ -161,7 +161,8 @@ class ApiClient {
     });
 
     if (response.success) {
-      return response.data || response;
+      // For endpoints that don't return data, return the response itself
+      return (response.data !== undefined ? response.data : response) as T;
     }
 
     throw new Error(response.error || 'POST request failed');

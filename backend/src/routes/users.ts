@@ -141,15 +141,17 @@ router.post('/:id/reset-password', requireRole(['admin']), async (req: Request, 
     // Safety: ensure columns exist even if server bootstrap didn't run it
     await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_token text;`);
     await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_reset_expires timestamptz;`);
+    await pool.query(`ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS password_hash text;`);
 
-    // Generate a random reset token
-    const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    // Generate a cryptographically secure reset token
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
     
     const result = await pool.query(
       `UPDATE public.profiles 
        SET password_reset_token = $1, password_reset_expires = NOW() + INTERVAL '1 hour'
        WHERE id = $2
-       RETURNING id, email`,
+       RETURNING id, email, user_id`,
       [resetToken, id]
     );
 
@@ -165,7 +167,8 @@ router.post('/:id/reset-password', requireRole(['admin']), async (req: Request, 
       message: 'Password reset token generated',
       data: {
         token: resetToken,
-        email: result.rows[0].email
+        email: result.rows[0].email,
+        userId: result.rows[0].user_id
       }
     });
   } catch (error) {
@@ -192,7 +195,7 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
 
     // Verify the reset token and check if it's still valid
     const result = await pool.query(
-      `SELECT id, email FROM public.profiles 
+      `SELECT id, email, user_id FROM public.profiles 
        WHERE id = $1 
          AND password_reset_token = $2 
          AND (password_reset_expires IS NULL OR (password_reset_expires::timestamptz) > NOW())`,
@@ -214,12 +217,14 @@ router.post('/:id/confirm-reset', requireRole(['admin']), async (req: Request, r
     const update = await pool.query(
       `UPDATE public.profiles 
        SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL
-       WHERE id = $2 RETURNING id`,
+       WHERE id = $2 RETURNING id, email, user_id`,
       [hashedPassword, id]
     );
     if (update.rows.length === 0) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    console.log(`Password reset successful for user ${update.rows[0].email} (ID: ${update.rows[0].id})`);
 
     return res.json({
       success: true,

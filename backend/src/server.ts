@@ -20,6 +20,7 @@ import donationRoutes from './routes/donations';
 import transactionRoutes from './routes/transactions';
 import ticketRoutes from './routes/tickets';
 import paymentsRouter from './routes/payments';
+import cleanupRoutes from './routes/cleanup';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -111,11 +112,19 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174', 
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Length', 'Content-Type'],
+  optionsSuccessStatus: 200
 }));
 
 // Rate limiting
@@ -177,6 +186,7 @@ app.use('/api/donations', donationRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/payments', paymentsRouter);
+app.use('/api/cleanup', cleanupRoutes);
 
 // API documentation
 app.get('/api', (req, res) => {

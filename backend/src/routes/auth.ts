@@ -103,41 +103,55 @@ router.post('/login', [
 
     // Find user
     const result = await pool.query(
-      //'SELECT * FROM profiles WHERE email = $1',
       'SELECT * FROM public.profiles WHERE email = $1',
       [email]
     );
 
     if (result.rows.length === 0) {
+      console.log(`Login failed: User not found for email ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
-    const user = result.rows[0] as any; // Type assertion for mock data
+    const user = result.rows[0] as any;
+    
+    // Debug logging
+    console.log(`Login attempt for ${email}:`, {
+      hasUserId: !!user.user_id,
+      hasEmail: !!user.email,
+      hasRole: !!user.role,
+      hasPasswordHash: !!user.password_hash,
+      passwordHashLength: user.password_hash ? user.password_hash.length : 0
+    });
     
     // Ensure we have a valid user object with required properties
     if (!user || !user.user_id || !user.email || !user.role) {
+      console.log(`Login failed: Invalid user object for ${email}`);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
     if (!user.password_hash) {
+      console.log(`Login failed: No password hash for ${email}`);
       return res.status(401).json({ success: false, message: 'Password not set. Please ask admin to set/reset password.' });
     }
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
     if (!isPasswordValid) {
+      console.log(`Login failed: Invalid password for ${email}`);
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
       });
     }
 
+    console.log(`Login successful for ${email} (role: ${user.role})`);
+
     // Generate JWT token
     const token = jwt.sign(
-      { userId: (user as any).user_id, email: (user as any).email, role: (user as any).role },
+      { userId: user.user_id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'fallback-secret',
       { expiresIn: '7d' }
     );
@@ -250,41 +264,93 @@ router.post('/request-password-reset', [
   }
 });
 
-// Password reset by email (non-admin): confirm reset
-router.post('/confirm-password-reset', [
-  body('email').isEmail().normalizeEmail(),
-  body('token').isString().isLength({ min: 20 }),
-  body('newPassword').isString().isLength({ min: 8 }),
-], async (req: Request, res: Response) => {
+// Confirm password reset (public endpoint)
+router.post('/confirm-password-reset', async (req: Request, res: Response) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ success: false, errors: errors.array() });
-    }
-
     const { email, token, newPassword } = req.body;
 
-    // Verify token
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, token, and new password are required'
+      });
+    }
+
+    // Verify the reset token and check if it's still valid
     const result = await pool.query(
-      `SELECT id FROM public.profiles WHERE email = $1 AND password_reset_token = $2 AND (password_reset_expires IS NULL OR password_reset_expires > NOW())`,
+      `SELECT id, email FROM public.profiles 
+       WHERE email = $1 
+         AND password_reset_token = $2 
+         AND (password_reset_expires IS NULL OR (password_reset_expires::timestamptz) > NOW())`,
       [email, token]
     );
+
     if (result.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired reset token' });
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
     }
 
     // Hash the new password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await pool.query(
-      `UPDATE public.profiles SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL WHERE email = $2`,
+    // Update the password and clear the reset token
+    const update = await pool.query(
+      `UPDATE public.profiles 
+       SET password_hash = $1, password_reset_token = NULL, password_reset_expires = NULL
+       WHERE email = $2 RETURNING id`,
       [hashedPassword, email]
     );
+    
+    if (update.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
 
-    return res.json({ success: true, message: 'Password reset successfully' });
-  } catch (error: any) {
-    console.error('Confirm password reset error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to reset password' });
+    return res.json({
+      success: true,
+      message: 'Password reset successfully'
+    });
+  } catch (error) {
+    console.error('Error confirming password reset:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset password'
+    });
+  }
+});
+
+// Debug endpoint to check user password status (remove in production)
+router.get('/debug-user/:email', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.params;
+    
+    const result = await pool.query(
+      'SELECT id, user_id, email, role, password_hash, password_reset_token, password_reset_expires FROM public.profiles WHERE email = $1',
+      [email]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    return res.json({
+      success: true,
+      data: {
+        id: user.id,
+        userId: user.user_id,
+        email: user.email,
+        role: user.role,
+        hasPasswordHash: !!user.password_hash,
+        passwordHashLength: user.password_hash ? user.password_hash.length : 0,
+        hasResetToken: !!user.password_reset_token,
+        resetTokenExpires: user.password_reset_expires
+      }
+    });
+  } catch (error) {
+    console.error('Debug user error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
