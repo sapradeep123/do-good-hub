@@ -13,20 +13,20 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/src/database/migrations:/docker-entrypoint-initdb.d
+      - ./backend_python/alembic/versions:/docker-entrypoint-initdb.d
     networks:
       - do-good-hub-network
     restart: unless-stopped
 
-  # Node.js Backend API
+  # Python FastAPI Backend
   backend:
     build:
-      context: ./backend
+      context: ./backend_python
       dockerfile: Dockerfile
     container_name: do-good-hub-backend
     environment:
-      NODE_ENV: development
-      PORT: 3001
+      ENVIRONMENT: development
+      PORT: 8000
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: do_good_hub
@@ -35,32 +35,31 @@ services:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/do_good_hub
       JWT_SECRET: your-super-secret-jwt-key-change-this-in-production
       JWT_EXPIRES_IN: 7d
-      CORS_ORIGIN: http://localhost:8082
+      CORS_ORIGINS: http://localhost:8082
     ports:
-      - "3001:3001"
+      - "8000:8000"
     volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - ./backend_python:/app
     depends_on:
       - postgres
     networks:
       - do-good-hub-network
     restart: unless-stopped
-    command: npm run dev
+    command: python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
   # Frontend (React/Vite)
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.frontend
     container_name: do-good-hub-frontend
     environment:
-      VITE_API_URL: http://localhost:3001
+      VITE_API_URL: http://localhost:8000
     ports:
       - "8082:8082"
     volumes:
-      - ./src:/app/src
-      - ./public:/app/public
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
       - /app/node_modules
     depends_on:
       - backend

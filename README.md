@@ -33,27 +33,33 @@ A comprehensive donation platform connecting donors with verified NGOs across In
 - **Edge Functions** for server-side logic
 - **Real-time subscriptions**
 
-#### Option 2: Custom Backend (Migration Ready)
-- **Node.js + Express** or **Python + FastAPI**
-- **PostgreSQL** or **SQLite** database
+#### Custom Backend (Current)
+- **Python + FastAPI**
+- **PostgreSQL** database
 - **JWT Authentication**
 - **RESTful API**
+- **SQLAlchemy ORM**
+- **Alembic migrations**
 
 ## 📋 Prerequisites
 
-- Node.js 18+
+- Node.js 18+ (for frontend)
+- Python 3.11+
+- PostgreSQL 15+
 - Git
-- For custom backend: PostgreSQL or Python 3.9+
 
 ## 🚀 Quick Start
 
-### Using Lovable (Current Setup)
+### Frontend Development
 ```sh
 # Clone the repository
 git clone <YOUR_GIT_URL>
 
 # Navigate to project directory
 cd <YOUR_PROJECT_NAME>
+
+# Navigate to frontend directory
+cd frontend
 
 # Install dependencies
 npm install
@@ -68,20 +74,30 @@ See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) and [CURSOR_SETUP.md](./CURSOR_SE
 ## 📁 Project Structure
 
 ```
-carefund/
-├── src/
-│   ├── components/          # Reusable UI components
-│   │   ├── ui/             # Shadcn/ui components
-│   │   └── ...             # Custom components
-│   ├── pages/              # Page components
-│   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Utility functions
-│   ├── data/               # Static data and mocks
-│   └── integrations/       # External service integrations
-├── public/                 # Static assets
-├── backend-examples/       # Backend implementation examples
-├── database/              # Database migration files
-└── docs/                  # Documentation
+do-good-hub/
+├── frontend/               # Frontend React application
+│   ├── src/               # React source code
+│   │   ├── components/     # Reusable UI components
+│   │   │   ├── ui/        # Shadcn/ui components
+│   │   │   └── ...        # Custom components
+│   │   ├── pages/         # Page components
+│   │   ├── hooks/         # Custom React hooks
+│   │   ├── lib/           # Utility functions
+│   │   └── data/          # Static data and mocks
+│   ├── public/            # Static assets
+│   ├── package.json       # Frontend dependencies
+│   ├── vite.config.ts     # Vite configuration
+│   └── ...                # Other config files
+├── backend_python/         # Python FastAPI backend
+│   ├── app/
+│   │   ├── routes/         # API endpoints
+│   │   ├── models/         # SQLAlchemy models
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── middleware/     # FastAPI middleware
+│   │   └── database/       # DB connection & config
+│   ├── alembic/           # Database migrations
+│   └── requirements.txt    # Python dependencies
+└── backend-examples/       # Backend implementation examples
 ```
 
 ## 🔧 Configuration
@@ -93,8 +109,8 @@ carefund/
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 
-# Custom Backend Configuration (After Migration)
-VITE_API_URL=http://localhost:3001/api
+# Custom Backend Configuration (Current)
+VITE_API_URL=http://localhost:8000/api
 ```
 
 ## 📚 Key Components
@@ -219,7 +235,7 @@ For support and questions:
 ## 🗺 Migration Roadmap
 
 - [ ] Export code to GitHub ✅
-- [ ] Set up custom backend (Node.js/Python)
+- [ ] Set up custom backend (Python FastAPI)
 - [ ] Migrate database schema
 - [ ] Replace Supabase auth with JWT
 - [ ] Update API calls in frontend

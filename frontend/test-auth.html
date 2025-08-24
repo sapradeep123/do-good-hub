@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auth Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; margin: 5px; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        .result { margin-top: 10px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Authentication Test</h1>
+    
+    <div class="test-section">
+        <h2>Register Test</h2>
+        <input type="email" id="reg-email" placeholder="Email" value="test2@example.com">
+        <input type="password" id="reg-password" placeholder="Password" value="password123">
+        <input type="text" id="reg-firstName" placeholder="First Name" value="Test">
+        <input type="text" id="reg-lastName" placeholder="Last Name" value="User2">
+        <br>
+        <button onclick="testRegister()">Register</button>
+        <div id="register-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Login Test</h2>
+        <input type="email" id="login-email" placeholder="Email" value="test@example.com">
+        <input type="password" id="login-password" placeholder="Password" value="password123">
+        <br>
+        <button onclick="testLogin()">Login</button>
+        <div id="login-result" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Get Current User</h2>
+        <button onclick="testGetUser()">Get Current User</button>
+        <div id="user-result" class="result"></div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('authToken');
+
+        async function testRegister() {
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            const firstName = document.getElementById('reg-firstName').value;
+            const lastName = document.getElementById('reg-lastName').value;
+
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password, first_name: firstName, last_name: lastName, phone: "+1234567890", role: "user" })
+                });
+
+                const data = await response.json();
+                document.getElementById('register-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+                if (data.success && data.data.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('authToken', authToken);
+                }
+            } catch (error) {
+                document.getElementById('register-result').innerHTML = 
+                    `<pre>Error: ${error.message}</pre>`;
+            }
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                document.getElementById('login-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+                if (data.success && data.data.token) {
+                    authToken = data.data.token;
+                    localStorage.setItem('authToken', authToken);
+                }
+            } catch (error) {
+                document.getElementById('login-result').innerHTML = 
+                    `<pre>Error: ${error.message}</pre>`;
+            }
+        }
+
+        async function testGetUser() {
+            if (!authToken) {
+                document.getElementById('user-result').innerHTML = 
+                    '<pre>No token available. Please login first.</pre>';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/api/auth/me', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById('user-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('user-result').innerHTML = 
+                    `<pre>Error: ${error.message}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>
