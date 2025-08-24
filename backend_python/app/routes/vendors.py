@@ -215,10 +215,20 @@ async def update_vendor(
                 detail="Not authorized to update this vendor"
             )
         
-        # Update vendor fields
+        # Update vendor fields with proper mapping from API fields to database columns
         update_data = vendor_data.dict(exclude_unset=True)
+        
+        # Map API field names to database column names
+        field_mapping = {
+            'shop_name': 'company_name',
+            'full_address': 'address',
+            'shop_location': 'address'  # Both map to address in DB
+        }
+        
         for field, value in update_data.items():
-            setattr(vendor, field, value)
+            # Use mapped field name if it exists, otherwise use original field name
+            db_field = field_mapping.get(field, field)
+            setattr(vendor, db_field, value)
         
         await db.commit()
         await db.refresh(vendor)
@@ -226,22 +236,22 @@ async def update_vendor(
         return VendorResponse(
             id=vendor.id,
             user_id=vendor.user_id,
-            shop_name=vendor.shop_name,
-            owner_name=vendor.owner_name,
+            shop_name=vendor.company_name,  # Map company_name to shop_name
+            owner_name=vendor.company_name,  # Use company_name as owner_name for now
             description=vendor.description,
             website=vendor.website,
             logo_url=vendor.logo_url,
-            shop_location=vendor.shop_location,
-            full_address=vendor.full_address,
-            pin_code=vendor.pin_code,
+            shop_location=vendor.address,  # Map address to shop_location
+            full_address=vendor.address,  # Map address to full_address
+            pin_code="000000",  # Default pin_code since it doesn't exist in DB
             city=vendor.city,
             state=vendor.state,
             country=vendor.country,
             phone=vendor.phone,
             email=vendor.email,
-            gst_number=vendor.gst_number,
+            gst_number="000000000000000",  # Default GST since it doesn't exist in DB
             business_type=vendor.business_type,
-            business_license=vendor.business_license,
+            business_license=None,  # Default since it doesn't exist in DB
             verified=vendor.verified,
             created_at=vendor.created_at,
             updated_at=vendor.updated_at

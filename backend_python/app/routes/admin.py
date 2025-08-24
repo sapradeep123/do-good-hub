@@ -221,6 +221,54 @@ async def get_all_vendors(
         updated_at=vendor.updated_at
     ) for vendor in vendors]
 
+@router.put("/vendors/{vendor_id}", response_model=SuccessResponse)
+async def update_vendor(
+    vendor_id: uuid.UUID,
+    vendor_data: VendorUpdate,
+    current_user: Profile = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Update Vendor (Admin only)."""
+    check_admin_role(current_user)
+    
+    # Check if Vendor exists
+    stmt = select(Vendor).where(Vendor.id == vendor_id)
+    result = await db.execute(stmt)
+    vendor = result.scalar_one_or_none()
+    
+    if not vendor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor not found"
+        )
+    
+    # Update Vendor fields with proper mapping from API fields to database columns
+    update_data = vendor_data.model_dump(exclude_unset=True)
+    if update_data:
+        # Map API field names to database column names
+        field_mapping = {
+            'shop_name': 'company_name',
+            'full_address': 'address',
+            'shop_location': 'address'  # Both map to address in DB
+        }
+        
+        # Create mapped update data
+        mapped_update_data = {}
+        for field, value in update_data.items():
+            # Use mapped field name if it exists, otherwise use original field name
+            db_field = field_mapping.get(field, field)
+            mapped_update_data[db_field] = value
+        
+        mapped_update_data['updated_at'] = datetime.utcnow()
+        stmt = update(Vendor).where(Vendor.id == vendor_id).values(**mapped_update_data)
+        await db.execute(stmt)
+        await db.commit()
+    
+    return SuccessResponse(
+        success=True,
+        message="Vendor updated successfully"
+    )
+
 @router.delete("/vendors/{vendor_id}", response_model=SuccessResponse)
 async def delete_vendor(
     vendor_id: uuid.UUID,
